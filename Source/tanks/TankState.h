@@ -12,7 +12,7 @@
 
 
 UENUM(BlueprintType)
-enum class ETankMovement : uint8
+enum class ETankMovementState : uint8
 {
 	Stand 				UMETA(DisplayName = "Tank stand at place"),
 	MoveForward 		UMETA(DisplayName = "Tank moves forward"),
@@ -21,6 +21,7 @@ enum class ETankMovement : uint8
 	RotateRight			UMETA(DisplayName = "Tank turning right"),
 };
 
+/*
 UCLASS()
 class TANKS_API ATankState : public APlayerState {
 	GENERATED_BODY()
@@ -38,3 +39,4 @@ public:
 	UPROPERTY()
 	uint8 Health;
 };
+*/

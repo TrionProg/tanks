@@ -19,6 +19,6 @@ class TANKS_API ATankPlayerState : public APlayerState {
 public:
 
 	//TODO * to allow engine to serialize it?
-	OptionPtr<class ATankState> Tank;
+	//OptionPtr<class ATankState> Tank;
 	
 };
