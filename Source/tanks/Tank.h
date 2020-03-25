@@ -46,6 +46,8 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
 	float start_health;
+
+	float prev_float_value;
 //UE events and methods
 protected:
 	// Called when the game starts or when spawned

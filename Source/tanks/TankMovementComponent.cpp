@@ -12,6 +12,7 @@
 
 //NavMesh не юзает
 
+/*
 // Sets default values for this component's properties
 UTankMovementComponent::UTankMovementComponent()
 {
@@ -28,22 +29,42 @@ UTankMovementComponent::UTankMovementComponent()
 	TurningBoost = 8.0f;
 	bPositionCorrected = false;
 
-	//ResetMoveState(); //зачем?
+	ResetMoveState(); //зачем?
 }
+*/
 
-/*
 UTankMovementComponent::UTankMovementComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	MaxSpeed = 1200.f;
-	Acceleration = 4000.f;
-	Deceleration = 8000.f;
-	TurningBoost = 8.0f;
+	//MovementState = ETankMovementState::Stand;
+	//RotateSteps = 0;
+
+	IsMovementCommand = false;
+	MovementCommand = ETankMovementCommand::Stand;
+	MovementState = ETankMovementState::Stand;
+	MovementInertia = ETankMovementInertia::None;
+	MovementInertiaTimer = 0;
+
+	Yaw = 0;
+	CurrentSpeed = 0;
+	CurrentSpinSpeed = 0;
+	SpinShakeSpeed = 0;
+	RotateOn = 0;
+
+	MaxSpeedForward = 600.f;
+	AccelerationForward = 1000.f;
+	DecelerationForward = 200.f;
+
+	MaxSpinSpeed = 30;
+	AccelerationSpin = 90;
+	DecelerationSpin = 180;
+
+	//TurningBoost = 8.0f;
 	bPositionCorrected = false;
 
-	ResetMoveState();
+
+	ResetMoveState(); //зачем?
 }
-*/
 
 // Called when the game starts
 void UTankMovementComponent::BeginPlay()
@@ -51,242 +72,434 @@ void UTankMovementComponent::BeginPlay()
 	Super::BeginPlay();
 
 	MovementState = ETankMovementState::Stand;
-	RotateSteps = 0;
+	IsMovementCommand = false;
+	MovementCommand = ETankMovementCommand::Stand;
+	MovementState = ETankMovementState::Stand;
+	MovementInertia = ETankMovementInertia::None;
+	MovementInertiaTimer = 0;
+
+	Yaw = 0; //TODO rotate body..
+	//RotateSteps = 0;
 
 
 	
 }
 
-
-// Called every frame
-void UTankMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) {
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// Make sure that everything is still valid, and that we are allowed to move.
-	if (!PawnOwner || !UpdatedComponent || ShouldSkipUpdate(DeltaTime))
-	{
+void UTankMovementComponent::TickComponent(float dt, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) {
+	if (ShouldSkipUpdate(dt)) {
 		return;
 	}
 
-	auto Tank = (ATank*)PawnOwner;
+	Super::TickComponent(dt, TickType, ThisTickFunction);
+
+	// Make sure that everything is still valid, and that we are allowed to move.
+	if (!PawnOwner || !UpdatedComponent) {
+		return;
+	}
+
+	auto Tank = (ATank*)PawnOwner; //TODO safe cast
 
 	auto DesiredMovement = FVector(0, 0, 0);
 	FRotator DesiredRotation = Tank->GetActorRotation();
+	bool Rotated = false;
 
 	auto Controller = Tank->GetController();
 
-	if (Controller && Controller->IsLocalController())
-	{
+	if (!Controller) {
+		return;
+	}
+
+	if (Controller->IsLocalController()) {
+		if (Controller->IsLocalPlayerController()) {//On client side (player's pawn)
+			if (IsMovementCommand) {
+				IsMovementCommand = false;
+
+				switch (MovementCommand) {
+				case ETankMovementCommand::Stand: {
+					if (MovementState != ETankMovementState::Stand) {
+						UE_LOG(LogTemp, Warning, TEXT("Stand"));
+						EnableMovementInertia(MovementState);
+						SetMovementState(ETankMovementState::Stand);
+					}
+					break;
+				}
+				case ETankMovementCommand::MoveForward: {
+					if (MovementState == ETankMovementState::Stand) {
+						UE_LOG(LogTemp, Warning, TEXT("MoveForward"));
+						if (MovementInertia == ETankMovementInertia::MoveForward) {//TODO 2 disable if inertia exists не факт, что надо инерцию выключать, тк это и анимация
+							DisableMovementInertia(false); //Воспользуемся существующим ускорением
+						} else if (MovementInertia == ETankMovementInertia::MoveBackward){
+							//DisableMovementInertia(false);
+						}
+
+						SetMovementState(ETankMovementState::MoveForward);
+					}
+
+					break;
+				}
+				case ETankMovementCommand::MoveBackward: {
+					if (MovementState == ETankMovementState::Stand) {
+						UE_LOG(LogTemp, Warning, TEXT("MoveBackward"));
+						if (MovementInertia == ETankMovementInertia::MoveBackward) {//TODO 2 disable if inertia exists не факт, что надо инерцию выключать, тк это и анимация
+							DisableMovementInertia(false); //Воспользуемся существующим ускорением
+						} else if (MovementInertia == ETankMovementInertia::MoveForward) {
+							//DisableMovementInertia(false);
+						}
+
+						SetMovementState(ETankMovementState::MoveBackward);
+					}
+
+					break;
+				}
+				case ETankMovementCommand::RotateLeft: {
+					if (MovementState != ETankMovementState::RotateLeft) {
+						EnableMovementInertia(MovementState);
+						SetMovementState(ETankMovementState::RotateLeft);
+
+						if (RotateOn == 0) {
+							RotateOn = -90;
+						}else if (RotateOn > 0) {
+							RotateOn = -(90 - RotateOn);
+						}
+
+						UE_LOG(LogTemp, Warning, TEXT("RotateLeft--- %f"), RotateOn);
+					}else {
+						//UE_LOG(LogTemp, Warning, TEXT("RotateLeft=== %f"), RotateOn);
+						//RotateOn -= 90;
+					}
+
+					break;
+				}
+				case ETankMovementCommand::RotateRight: {
+					if (MovementState != ETankMovementState::RotateRight) {
+						EnableMovementInertia(MovementState);
+						SetMovementState(ETankMovementState::RotateRight);
+
+						if (RotateOn == 0) {
+							RotateOn = 90;
+						}else if (RotateOn < 0) {
+							UE_LOG(LogTemp, Warning, TEXT("RotateRight %f"), RotateOn);
+							RotateOn = (90 + RotateOn);
+							UE_LOG(LogTemp, Warning, TEXT("RotateRight--- %f"), RotateOn);
+						}
+						UE_LOG(LogTemp, Warning, TEXT("RotateRight--- %f"), RotateOn);
+					} else {
+						//UE_LOG(LogTemp, Warning, TEXT("RotateRight=== %f"), RotateOn);
+						//RotateOn += 90;
+					}
+
+					break;
+				}
+				}
+			}
+		}
+		/*
 		// apply input for local players but also for AI that's not following a navigation path at the moment
-		if (Controller->IsLocalPlayerController() == true || Controller->IsFollowingAPath() == false || bUseAccelerationForPaths)
-		{
-			ApplyControlInputToVelocity(DeltaTime);
-		}
-		// if it's not player controller, but we do have a controller, then it's AI
-		// (that's not following a path) and we need to limit the speed
-		else if (IsExceedingMaxSpeed(MaxSpeed) == true)
-		{
-			Velocity = Velocity.GetUnsafeNormal() * MaxSpeed;
-		}
+		if (Controller->IsLocalPlayerController() || Controller->IsFollowingAPath() || bUseAccelerationForPaths) {
 
-		LimitWorldBounds();
-		bPositionCorrected = false;
+			//UE_LOG(LogTemp, Warning, TEXT("ApplyControlInputToVelocity") );
+			//ApplyControlInputToVelocity(DeltaTime);
+		} else {
+			// if it's not player controller, but we do have a controller, then it's AI and we need to limit the speed
+			if (Velocity.IsNearlyZero(1e-6f)) {
+				//TODO do not change if we need rotate
+				if (MovementState != ETankMovementState::Stand) {
+					SetMovementState(ETankMovementState::Stand);
+				}
+			} else if (IsExceedingMaxSpeed(MaxSpeed)) {
+				Velocity = Velocity.GetUnsafeNormal() * MaxSpeed;
 
-		// Move actor
-		FVector Delta = Velocity * DeltaTime;
-
-		if (!Delta.IsNearlyZero(1e-6f))
-		{
-			const FVector OldLocation = UpdatedComponent->GetComponentLocation();
-			const FQuat Rotation = UpdatedComponent->GetComponentQuat();
-
-			FHitResult Hit(1.f);
-			SafeMoveUpdatedComponent(Delta, Rotation, true, Hit);
-
-			if (Hit.IsValidBlockingHit())
-			{
-				HandleImpact(Hit, DeltaTime, Delta);
-				// Try to slide the remaining distance along the surface.
-				SlideAlongSurface(Delta, 1.f - Hit.Time, Hit.Normal, Hit, true);
-			}
-
-			// Update velocity
-			// We don't want position changes to vastly reverse our direction (which can happen due to penetration fixups etc)
-			if (!bPositionCorrected)
-			{
-				const FVector NewLocation = UpdatedComponent->GetComponentLocation();
-				Velocity = ((NewLocation - OldLocation) / DeltaTime);
+				SetMovementState(ETankMovementState::MoveForward);
 			}
 		}
+		*/
 
-		// Finalize
-		UpdateComponentVelocity();
-	}
+		//LimitWorldBounds();
+		//bPositionCorrected = false;
 
-	if (Controller) {
-		if (!Controller->IsPlayerController()) {
-			auto rot = Controller->GetControlRotation();
+		/*
+		switch (MovementState) {
+		case ETankMovementState::MoveForward: {
+			//TODO Rotate and move
 
-			DesiredRotation.Yaw = rot.Yaw - 90;
+			//Velocity = GetMaxSpeed();
+			auto ForwardVector = Tank->GetForwardVector();
+			DesiredMovement += Velocity * dt;
 
-			//UE_LOG(LogTemp, Warning, TEXT("Rot %f %f %f"), rot.Pitch, rot.Yaw, rot.Roll);
+			break;
+		}case ETankMovementState::MoveBackward: {
+			//TODO Rotate and move
 
-			//auto rot2 = controller->GetDesiredRotation();
-			//auto rot3 = controller->GetTransform.
+			auto ForwardVector = Tank->GetForwardVector();
+			DesiredMovement += Velocity * -dt;
 
-			//UE_LOG(LogTemp, Warning, TEXT("Rot2 %f %f %f"), rot2.Pitch, rot2.Yaw, rot2.Roll);
-
-			//auto InputVector = Tank->ConsumeMovementInputVector();
-
-			//const FVector ControlAcceleration = GetPendingInputVector().GetClampedToMaxSize(1.f);
-			//UE_LOG(LogTemp, Warning, TEXT("ControlAcceleration %f %f %f"), ControlAcceleration.X, ControlAcceleration.Y, ControlAcceleration.Z);
-
-			/*
-
-			//auto InputVector = ConsumeInputVector();
-			UE_LOG(LogTemp, Warning, TEXT("InputVector %f %f %f"), InputVector.X, InputVector.Y, InputVector.Z);
-
-			//мб работает, но выдаёт большие цифры и они прыгают. Но X и Y кратны позиции. Кратно где-то 30. Но куда ехать учитывается
-			auto InputVector2 = Tank->GetVelocity();
-			UE_LOG(LogTemp, Warning, TEXT("InputVector2 %f %f %f"), InputVector2.X, InputVector2.Y, InputVector2.Z);
-
-			//нули, мб т.к. нет NavMesh
-			auto InputVector3 = controller->GetMoveGoalOffset(Tank);
-			UE_LOG(LogTemp, Warning, TEXT("InputVector3 %f %f %f"), InputVector3.X, InputVector3.Y, InputVector3.Z);
-
-			auto InputVector4 = controller->GetReplicatedMovement().LinearVelocity;
-			UE_LOG(LogTemp, Warning, TEXT("InputVector4 %f %f %f"), InputVector4.X, InputVector4.Y, InputVector4.Z);
-
-			auto InputVector5 = Tank->GetMoveGoalOffset(Tank);
-			UE_LOG(LogTemp, Warning, TEXT("InputVector5 %f %f %f"), InputVector5.X, InputVector5.Y, InputVector5.Z);
-
-			auto InputVector6 = Tank->K2_GetMovementInputVector();
-			UE_LOG(LogTemp, Warning, TEXT("InputVector6 %f %f %f"), InputVector6.X, InputVector6.Y, InputVector6.Z);
-
-			// = Tank->GetVelocity();
-			auto InputVector7 = this->Velocity;
-			UE_LOG(LogTemp, Warning, TEXT("InputVector7 %f %f %f"), InputVector7.X, InputVector7.Y, InputVector7.Z);
-			*/
-
+			break;
 		}
+		}
+		*/
+
+
 	}
-	/*
-	auto InputVector = ConsumeInputVector();
 
-	if (!InputVector.IsNearlyZero()) {
-		auto InputVectorNorm = InputVector.GetClampedToMaxSize(1.0f);
+	switch (MovementState) {
+	case ETankMovementState::Stand: {
+		//Velocity = FVector::ZeroVector;
+		break;
+	}
+	case ETankMovementState::MoveForward: {
+		if (Controller->IsLocalPlayerController()) { //Controlled by Player on Client
+			CurrentSpeed += AccelerationForward * dt;
 
+			if (CurrentSpeed > MaxSpeedForward) {
+				CurrentSpeed = MaxSpeedForward;
+			}
+		}
+
+		break;
+	}
+	case ETankMovementState::MoveBackward: {
+		if (Controller->IsLocalPlayerController()) { //Controlled by Player on Client
+			CurrentSpeed -= AccelerationForward * dt;
+
+			if (CurrentSpeed < -MaxSpeedForward) {
+				CurrentSpeed = -MaxSpeedForward;
+			}
+
+			//UE_LOG(LogTemp, Warning, TEXT("MoveBackward Speed %f %f"));
+		}
+
+		break;
+	}
+	case ETankMovementState::RotateLeft: {
+		if (Controller->IsLocalPlayerController()) { //Controlled by Player on Client
+			CurrentSpinSpeed -= AccelerationSpin * dt;
+
+			if (CurrentSpinSpeed < -MaxSpinSpeed) {
+				CurrentSpinSpeed = -MaxSpinSpeed;
+			}
+		}
+
+		break;
+	}
+	case ETankMovementState::RotateRight: {
+		if (Controller->IsLocalPlayerController()) { //Controlled by Player on Client
+			CurrentSpinSpeed += AccelerationSpin * dt;
+
+			if (CurrentSpinSpeed > MaxSpinSpeed) {
+				CurrentSpinSpeed = MaxSpinSpeed;
+			}
+		}
+
+		break;
+	}
+	}
+
+	switch (MovementInertia) {
+	case ETankMovementInertia::MoveForward: {
+		//Тут выходит прикол, что танк может двигаться назад, а это ускорение будет помогать, а сравнение с 0 мешать. Надо отменить.
+		CurrentSpeed -= DecelerationForward * dt;
+
+		if (CurrentSpeed < 0) {
+			MovementInertia = ETankMovementInertia::None;
+			CurrentSpeed = 0;
+		}
+
+		break;
+	}
+	case ETankMovementInertia::MoveBackward: {
+		CurrentSpeed += DecelerationForward * dt;
+
+		if (CurrentSpeed > 0) {
+			MovementInertia = ETankMovementInertia::None;
+			CurrentSpeed = 0;
+		}
+
+		break;
+	}
+	case ETankMovementInertia::RotateLeft: {
+		//TODO only visual, do not affects Yaw
+		break;
+	}
+	case ETankMovementInertia::RotateRight: {
+		//TODO only visual, do not affects Yaw
+		break;
+	}
+	}
+
+	if (CurrentSpeed != 0) {
 		auto ForwardVector = Tank->GetForwardVector();
+		Velocity = ForwardVector * CurrentSpeed;
+		DesiredMovement = Velocity * dt;
+	}else {
+		Velocity = FVector::ZeroVector;
+	}
 
-		//UE_LOG(LogTemp, Warning, TEXT("InputVector %f %f %f"), InputVector.X, InputVector.Y, InputVector.Z);
+	if (CurrentSpinSpeed != 0) {
+		Rotated = true;
 
-		auto Angle = -calc_angle_between_vectors_2d(InputVectorNorm, ForwardVector);
+		auto TickSpinSpeed = CurrentSpinSpeed * dt;
+
+		if (FMath::Abs(RotateOn) < FMath::Abs(TickSpinSpeed)) { //мы можем выровниться
+			Yaw += RotateOn;
+			RotateOn = 0;
+
+			EnableMovementInertia(MovementState);
+			SetMovementState(ETankMovementState::Stand);
+		} else { //Мы должны остановиться и начать двигаться вперёд
+			Yaw += TickSpinSpeed;
+			RotateOn -= TickSpinSpeed;
+		}
+
+		if (Yaw > 180) {
+			Yaw -= 360;
+		}else if (Yaw < -180) {
+			Yaw += 360;
+		}
+
+		DesiredRotation.Yaw = Yaw + 180;
+	}
+
+	//TODO and rotate
+	
+
+	//Надо получить Velocity(в случае управления самим игроком), DesiredMovement -- это Velocity*tick(иначе из-за ускорения).
+
+	//он игрока, но сторона неизвестна
+	if (!Controller->IsPlayerController()) {
+		//auto rot = Controller->GetControlRotation();
+
+		//DesiredRotation.Yaw = rot.Yaw - 90;
+
+		//auto Angle = -calc_angle_between_vectors_2d(InputVectorNorm, ForwardVector);
 
 		//UE_LOG(LogTemp, Warning, TEXT("ForwardVector %f %f %f %f"), ForwardVector.X, ForwardVector.Y, ForwardVector.Z, Angle);
 
-		auto TickSpinSpeed = SpinSpeed * dt;
-		bool MoveBackward = false;
-		*/
+		//auto TickSpinSpeed = SpinSpeed * dt;
+		//bool MoveBackward = false;
 
-		//TODO добавить движение по дуге -- будет указана коненая точка, и мы рассчитываем угол с условием, что мы проделаем этот путь, и как мы за это время сможем повернуть
-		//А навмеш, InputVector будет нам говорить, мол мы так не можем. Посмотрим
+			//TODO добавить движение по дуге -- будет указана коненая точка, и мы рассчитываем угол с условием, что мы проделаем этот путь, и как мы за это время сможем повернуть
+			//А навмеш, InputVector будет нам говорить, мол мы так не можем. Посмотрим
 
-		/*
-		if (Angle > 90+10 || Angle < -90-10) {//Двигаться задом выгоднее, Хотя если это САУ, то надо двигаться лобовой бронёй и пушкой к врагу
-			MoveBackward = true;
+			/*
+			if (Angle > 90+10 || Angle < -90-10) {//Двигаться задом выгоднее, Хотя если это САУ, то надо двигаться лобовой бронёй и пушкой к врагу
+				MoveBackward = true;
 
-			if (Angle < 0) {
-				Angle = 180 + Angle;
-			}else if (Angle > 0) {
-				Angle = -180 + Angle;
-			}
-		}
-		*/
-
-	/*
-		if (FMath::Abs(Angle) < FMath::Abs(TickSpinSpeed)) { //TODO мы можем выровниться
-			DesiredRotation.Yaw += Angle;
-
-			if (!MoveBackward) {
-				if (MovementState != ETankMovementState::MoveForward) {
-					SetMovementState(ETankMovementState::MoveForward);
-				}
-			} else {
-				if (MovementState != ETankMovementState::MoveBackward) {
-					SetMovementState(ETankMovementState::MoveBackward);
+				if (Angle < 0) {
+					Angle = 180 + Angle;
+				}else if (Angle > 0) {
+					Angle = -180 + Angle;
 				}
 			}
-		}
-		else { //Мы должны остановиться и начать двигаться вперёд
-			if (Angle > 0) {
-				if (MovementState != ETankMovementState::RotateRight) {
-					SetMovementState(ETankMovementState::RotateRight);
-				}
+			*/
 
-				DesiredRotation.Yaw += TickSpinSpeed;
-			}
-			else {
-				if (MovementState != ETankMovementState::RotateLeft) {
-					SetMovementState(ETankMovementState::RotateLeft);
-				}
+			/*
+				if (FMath::Abs(Angle) < FMath::Abs(TickSpinSpeed)) { //TODO мы можем выровниться
+					DesiredRotation.Yaw += Angle;
 
-				DesiredRotation.Yaw -= TickSpinSpeed;
-			}
-		}
-	} else {
-		if (MovementState != ETankMovementState::Stand) {
-			SetMovementState(ETankMovementState::Stand);
-		}
+					if (!MoveBackward) {
+						if (MovementState != ETankMovementState::MoveForward) {
+							SetMovementState(ETankMovementState::MoveForward);
+						}
+					} else {
+						if (MovementState != ETankMovementState::MoveBackward) {
+							SetMovementState(ETankMovementState::MoveBackward);
+						}
+					}
+				}
+				else { //Мы должны остановиться и начать двигаться вперёд
+					if (Angle > 0) {
+						if (MovementState != ETankMovementState::RotateRight) {
+							SetMovementState(ETankMovementState::RotateRight);
+						}
+
+						DesiredRotation.Yaw += TickSpinSpeed;
+					}
+					else {
+						if (MovementState != ETankMovementState::RotateLeft) {
+							SetMovementState(ETankMovementState::RotateLeft);
+						}
+
+						DesiredRotation.Yaw -= TickSpinSpeed;
+					}
+				}*/
 	}
 
-	if (DesiredRotation.Yaw > 180) {
-		DesiredRotation.Yaw -= 360;
-	}else if (DesiredRotation.Yaw < -180) {
-		DesiredRotation.Yaw += 360;
+	//TODO process always, check if rotation has been changed
+
+	if (!DesiredMovement.IsNearlyZero() || Rotated) {
+		bPositionCorrected = false;
+		const FVector OldLocation = UpdatedComponent->GetComponentLocation();
+
+		FHitResult Hit(1.f);
+		SafeMoveUpdatedComponent(DesiredMovement, DesiredRotation, true, Hit);
+
+		if (Hit.IsValidBlockingHit()){
+			HandleImpact(Hit, dt, DesiredMovement);
+			// Try to slide the remaining distance along the surface.
+			SlideAlongSurface(DesiredMovement, 1.f - Hit.Time, Hit.Normal, Hit, true);
+		}
+
+		// Update velocity
+		// We don't want position changes to vastly reverse our direction (which can happen due to penetration fixups etc)
+		if (!bPositionCorrected){
+			const FVector NewLocation = UpdatedComponent->GetComponentLocation();
+			Velocity = ((NewLocation - OldLocation) / dt);
+		}
+
+		UpdateComponentVelocity();
 	}
+}
 
-	DesiredMovement.Z = -10; //TODO tmp gravity, we can move then faling, and we need impulse, etc
+void UTankMovementComponent::SendMovementCommand(ETankMovementCommand NewMovementCommand) {
+	IsMovementCommand = true;
+	MovementCommand = NewMovementCommand;
+}
 
-	switch (MovementState) {
-	case ETankMovementState::MoveForward: {
-		//TODO Rotate and move
-
-		auto ForwardVector = Tank->GetForwardVector();
-		DesiredMovement += ForwardVector * dt * Speed;
-
+void UTankMovementComponent::EnableMovementInertia(ETankMovementState PrevMovementState) {
+	switch (PrevMovementState) {
+	case ETankMovementState::MoveForward:
+		MovementInertia = ETankMovementInertia::MoveForward;
 		break;
-	}case ETankMovementState::MoveBackward: {
-		//TODO Rotate and move
-
-		auto ForwardVector = Tank->GetForwardVector();
-		DesiredMovement += ForwardVector * dt * -Speed;
-
+	case ETankMovementState::MoveBackward:
+		MovementInertia = ETankMovementInertia::MoveBackward;
+		break;
+	case ETankMovementState::RotateLeft:
+		MovementInertia = ETankMovementInertia::RotateLeft;
+		MovementInertiaTimer = 1;
+		SpinShakeSpeed = CurrentSpinSpeed;
+		CurrentSpinSpeed = 0;
+		break;
+	case ETankMovementState::RotateRight:
+		MovementInertia = ETankMovementInertia::RotateRight;
+		MovementInertiaTimer = 1;
+		SpinShakeSpeed = CurrentSpinSpeed;
+		CurrentSpinSpeed = 0;
 		break;
 	}
+}
+
+void UTankMovementComponent::DisableMovementInertia(bool ClearAcceleration) {
+	if (ClearAcceleration) {
+		switch (MovementInertia) {
+		case ETankMovementInertia::MoveForward:
+		case ETankMovementInertia::MoveBackward:
+			CurrentSpeed = 0;
+			break;
+		case ETankMovementInertia::RotateLeft:
+		case ETankMovementInertia::RotateRight:
+			CurrentSpinSpeed = 0;
+			break;
+		}
 	}
-	*/
 
-	/*
-	FHitResult Hit;
-	SafeMoveUpdatedComponent(DesiredMovement, DesiredRotation, true, Hit);
-
-	if (Hit.IsValidBlockingHit()) { // If we bumped into something, try to slide along it
-		SlideAlongSurface(DesiredMovement, 1.f - Hit.Time, Hit.Normal, Hit);
-	}
-	*/
-
+	MovementInertia = ETankMovementInertia::None;
+	MovementInertiaTimer = 0;
 }
 
-void UTankMovementComponent::SetMovementState(ETankMovementState new_movement_state) {
-	MovementState = new_movement_state;
-}
+void UTankMovementComponent::SetMovementState(ETankMovementState NewMovementState) {
+	MovementState = NewMovementState;
 
-void UTankMovementComponent::SetSpeed(float new_speed) {
-	Speed = new_speed;
-}
-
-void UTankMovementComponent::SetSpinSpeed(float new_speed) {
-	SpinSpeed = new_speed;
+	//TODO send command or play sound
 }
 
 /*
@@ -323,13 +536,14 @@ bool UTankMovementComponent::LimitWorldBounds()
 	const FVector CurrentLocation = UpdatedComponent->GetComponentLocation();
 	if (CurrentLocation.Z < WorldSettings->KillZ)
 	{
-		Velocity.Z = FMath::Min(GetMaxSpeed(), WorldSettings->KillZ - CurrentLocation.Z + 2.0f);
+		//Velocity.Z = FMath::Min(GetMaxSpeed(), WorldSettings->KillZ - CurrentLocation.Z + 2.0f);
 		return true;
 	}
 
 	return false;
 }
 
+/*
 void UTankMovementComponent::ApplyControlInputToVelocity(float DeltaTime)
 {
 	const FVector ControlAcceleration = GetPendingInputVector().GetClampedToMaxSize(1.f);
@@ -374,6 +588,7 @@ void UTankMovementComponent::ApplyControlInputToVelocity(float DeltaTime)
 
 	ConsumeInputVector();
 }
+*/
 
 bool UTankMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit, const FQuat& NewRotationQuat)
 {

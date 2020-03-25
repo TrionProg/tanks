@@ -8,6 +8,27 @@
 
 #include "TankMovementComponent.generated.h"
 
+UENUM(BlueprintType)
+enum class ETankMovementCommand : uint8
+{
+	Stand 				UMETA(DisplayName = "Tank stand at place"),
+	MoveForward 		UMETA(DisplayName = "Tank moves forward"),
+	MoveBackward		UMETA(DisplayName = "Tank moves backward"),
+	RotateLeft			UMETA(DisplayName = "Tank turning left"),
+	RotateRight			UMETA(DisplayName = "Tank turning right"),
+};
+
+UENUM(BlueprintType)
+enum class ETankMovementInertia : uint8
+{
+	None 				UMETA(DisplayName = "No inertia"),
+	MoveForward 		UMETA(DisplayName = "Tank moves forward with Acceleration"),
+	MoveBackward		UMETA(DisplayName = "Tank moves backward with Acceleration"),
+	RotateLeft			UMETA(DisplayName = "Visually Shake tank left with Acceleration, uses timer"),
+	RotateRight			UMETA(DisplayName = "Visually Shake tank right with Acceleration, uses timer"),
+};
+
+//TODO Касаемо инерции, то вперёд-назад может существовать параллельно с влево-вправо. Отмена инерции вызывает баги.
 
 UCLASS()
 class TANKS_API UTankMovementComponent : public UPawnMovementComponent
@@ -15,23 +36,35 @@ class TANKS_API UTankMovementComponent : public UPawnMovementComponent
 	GENERATED_BODY()
 	//GENERATED_UCLASS_BODY()
 protected:
+	bool IsMovementCommand;
+	ETankMovementCommand MovementCommand;
+
+	ETankMovementState MovementState;
+	ETankMovementInertia MovementInertia;
+	float MovementInertiaTimer;
+
+	float Yaw;
+	float CurrentSpeed;
+	float CurrentSpinSpeed;
+	float SpinShakeSpeed;
+	float RotateOn;
+
 	//UPROPERTY()
 	//UPROPERTY(ReplicatedUsing = OnRep_CurrentHealth)
-	ETankMovementState MovementState;
 
 	//UPROPERTY()
-	uint8 RotateSteps;
+	//uint8 RotateSteps;
 
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Speed;
+	//float Speed;
 
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float SpinSpeed;
+	//float SpinSpeed;
 
 	//TODO rotate to
 public:	
 	// Sets default values for this component's properties
-	UTankMovementComponent();
+	//UTankMovementComponent();
 
 protected:
 	// Called when the game starts
@@ -40,12 +73,14 @@ protected:
 	virtual bool ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit, const FQuat& NewRotation) override;
 
 public:	
-	//UCharacterMovementComponent(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+	UTankMovementComponent(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	void SetMovementState(ETankMovementState new_movement_state);
+	void SendMovementCommand(ETankMovementCommand NewMovementCommand);
+
+	//void SetMovementState(ETankMovementState new_movement_state);
 	void SetSpeed(float new_speed);
 	void SetSpinSpeed(float new_speed);
 
@@ -58,31 +93,47 @@ public:
 	*/
 
 	//Begin UMovementComponent Interface
-	virtual float GetMaxSpeed() const override { return MaxSpeed; }
+	virtual float GetMaxSpeed() const override { return MaxSpeedForward; }
 
 	/** Maximum velocity magnitude allowed for the controlled Pawn. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FloatingPawnMovement)
-		float MaxSpeed;
+	float MaxSpeedForward;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FloatingPawnMovement)
+	float MaxSpinSpeed;
 
 	/** Acceleration applied by input (rate of change of velocity) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FloatingPawnMovement)
-		float Acceleration;
+	float AccelerationForward;
 
 	/** Deceleration applied when there is no input (rate of change of velocity) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FloatingPawnMovement)
-		float Deceleration;
+	float DecelerationForward;
 
-	/**
+	/** Acceleration applied by input (rate of change of velocity) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FloatingPawnMovement)
+	float AccelerationSpin;
+
+	/** Deceleration applied when there is no input (rate of change of velocity) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FloatingPawnMovement)
+	float DecelerationSpin;
+
+	/*
 	 * Setting affecting extra force applied when changing direction, making turns have less drift and become more responsive.
 	 * Velocity magnitude is not allowed to increase, that only happens due to normal acceleration. It may decrease with large direction changes.
 	 * Larger values apply extra force to reach the target direction more quickly, while a zero value disables any extra turn force.
-	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FloatingPawnMovement, meta = (ClampMin = "0", UIMin = "0"))
 		float TurningBoost;
 
+	*/
+
+private:
+	void EnableMovementInertia(ETankMovementState PrevMovementState);
+	void DisableMovementInertia(bool ClearAcceleration);
+	void SetMovementState(ETankMovementState NewMovementState);
 protected:
 	/** Update Velocity based on input. Also applies gravity. */
-	virtual void ApplyControlInputToVelocity(float DeltaTime);
+	//virtual void ApplyControlInputToVelocity(float DeltaTime);
 
 	/** Prevent Pawn from leaving the world bounds (if that restriction is enabled in WorldSettings) */
 	virtual bool LimitWorldBounds();

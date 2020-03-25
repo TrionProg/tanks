@@ -79,6 +79,7 @@ ATank::ATank()
 
 	shot_interval = 1;
 	start_health = 3;
+	prev_float_value = 0;
 
 	this->OnDestroyed.AddDynamic(this, &ATank::Destroyed);
 }
@@ -89,9 +90,10 @@ void ATank::BeginPlay()
 	Super::BeginPlay();
 
 	Health = start_health;
+	prev_float_value = 0;
 
-	movement_component->SetSpeed(300);
-	movement_component->SetSpinSpeed(40);
+	//movement_component->SetSpeed(300);
+	//movement_component->SetSpinSpeed(40);
 	
 }
 
@@ -193,9 +195,16 @@ OptionPtr<UWorld> ATank::get_world() {
 }
 
 void ATank::input_move_forward(float value) {
-	if (value != 0) {
-		UE_LOG(LogTemp, Warning, TEXT("ATank Move %f"), value);
-		AddMovementInput(FVector(-100, 0, 0));
+	if (value != prev_float_value) {
+		if (value > 0) {
+			movement_component->SendMovementCommand(ETankMovementCommand::MoveForward);
+		} else if (value < 0) {
+			movement_component->SendMovementCommand(ETankMovementCommand::MoveBackward);
+		} else {
+			movement_component->SendMovementCommand(ETankMovementCommand::Stand);
+		}
+
+		prev_float_value = value;
 	}
 	/*
 	if (value > 0) {
@@ -213,6 +222,8 @@ void ATank::input_move_forward(float value) {
 }
 
 void ATank::input_rotate_left() {
+	UE_LOG(LogTemp, Warning, TEXT("Input RotateLeft--"));
+	movement_component->SendMovementCommand(ETankMovementCommand::RotateLeft);
 	//FVector force_to_add = movement_force * value * FVector(1, 0, 0);
 	//auto root = (USceneComponent*)RootComponent;
 	//root->AddLocalOffset(force_to_add);
@@ -220,6 +231,7 @@ void ATank::input_rotate_left() {
 }
 
 void ATank::input_rotate_right() {
+	movement_component->SendMovementCommand(ETankMovementCommand::RotateRight);
 	//FVector force_to_add = movement_force * value * FVector(1, 0, 0);
 	//auto root = (USceneComponent*)RootComponent;
 	//root->AddLocalOffset(force_to_add);
