@@ -18,17 +18,39 @@ enum class ETankMovementCommand : uint8
 	RotateRight			UMETA(DisplayName = "Tank turning right"),
 };
 
-UENUM(BlueprintType)
-enum class ETankMovementInertia : uint8
-{
-	None 				UMETA(DisplayName = "No inertia"),
-	MoveForward 		UMETA(DisplayName = "Tank moves forward with Acceleration"),
-	MoveBackward		UMETA(DisplayName = "Tank moves backward with Acceleration"),
-	RotateLeft			UMETA(DisplayName = "Visually Shake tank left with Acceleration, uses timer"),
-	RotateRight			UMETA(DisplayName = "Visually Shake tank right with Acceleration, uses timer"),
+USTRUCT()
+struct FPlayerSynchronizationData/*: public FFastArraySerializerItem*/ {
+	//GENERATED_BODY()
+	//GENERATED_USTRUCT_BODY()
+	GENERATED_BODY()
+//public:
+	UPROPERTY(Transient)
+	FVector Position;
+	UPROPERTY(Transient)
+	float Yaw;
+	UPROPERTY(Transient)
+	ETankMovementState MovementState;
+	UPROPERTY(Transient)
+	ETankMovementInertia MovementInertia;
+	UPROPERTY(Transient)
+	float CurrentSpeed;
+	UPROPERTY(Transient)
+	float CurrentSpinSpeed;
+	UPROPERTY(Transient)
+	float RotateOn;
+
+	//bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
 };
 
+const float SYNCHRONIZE_WITH_SERVER_DELAY = 3;
+const float SYNCHRONIZE_WITH_SERVER_MAX_POS_ERROR = 30;
+const float SYNCHRONIZE_WITH_SERVER_MAX_ROT_ERROR = 15;
+const float YAW_OFFSET = 180;
+
 //TODO Касаемо инерции, то вперёд-назад может существовать параллельно с влево-вправо. Отмена инерции вызывает баги.
+//TODO Можно принимать инпут от игрока сразу при его действиях. Например, в SendCommands, там же он и шлёт серверу сообщения
+//TODO Аналагично и на стороне сервера. Так мы сможем вытащить отправку сообщений из тиков и сдвинуть время назад, 
+//и мб отправка сообщений занимает время тика, ломая тем самым чёткий интервал
 
 UCLASS()
 class TANKS_API UTankMovementComponent : public UPawnMovementComponent
@@ -39,15 +61,20 @@ protected:
 	bool IsMovementCommand;
 	ETankMovementCommand MovementCommand;
 
-	ETankMovementState MovementState;
+	UPROPERTY(ReplicatedUsing = OnRep_MovementState)
+	ETankMovementState Movement_State;
 	ETankMovementInertia MovementInertia;
-	float MovementInertiaTimer;
+	ETankRotationInertia RotationInertia;
+	float RotationInertiaTimer;
 
 	float Yaw;
 	float CurrentSpeed;
 	float CurrentSpinSpeed;
 	float SpinShakeSpeed;
 	float RotateOn;
+
+	//TODO по-хорошему этот счётчик должен быть только на стороне сервера
+	float SynchronizationWithServerTimer;
 
 	//UPROPERTY()
 	//UPROPERTY(ReplicatedUsing = OnRep_CurrentHealth)
@@ -60,6 +87,11 @@ protected:
 
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	//float SpinSpeed;
+
+	UFUNCTION()
+	void OnRep_MovementState();
+
+	//void OnMovementState();
 
 	//TODO rotate to
 public:	
@@ -79,6 +111,8 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	void SendMovementCommand(ETankMovementCommand NewMovementCommand);
+	void ProcessCommandsOfUser();
+	void ProcessCommandsOnServer();
 
 	//void SetMovementState(ETankMovementState new_movement_state);
 	void SetSpeed(float new_speed);
@@ -118,6 +152,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FloatingPawnMovement)
 	float DecelerationSpin;
 
+	/** Server function for spawning projectiles.*/
+	UFUNCTION(Server, Reliable)
+	void OnMovementStateChanged(ETankMovementState NewMovementState);
+
+	UFUNCTION(Client, Unreliable) //Not releable -- we just help to client
+	void SynchronizePlayerWithClient(FPlayerSynchronizationData SyncData);
+	//void SynchronizePlayerWithClient(FVector Pos);
+
+	void SynchronizePlayerWithClientTick(float dt);
+
+	void CorrectMovement(FVector NewPosition, ETankMovementState NewMovementState, ETankMovementInertia NewMovementInertia, float NewCurrentSpeed);
+
+	void CorrectRotation(float NewYaw, float NewCurrentSpinSpeed, float NewRotateOn);
 	/*
 	 * Setting affecting extra force applied when changing direction, making turns have less drift and become more responsive.
 	 * Velocity magnitude is not allowed to increase, that only happens due to normal acceleration. It may decrease with large direction changes.
@@ -128,10 +175,12 @@ public:
 	*/
 
 private:
-	void EnableMovementInertia(ETankMovementState PrevMovementState);
+	void EnableInertia(ETankMovementState PrevMovementState);
 	void DisableMovementInertia(bool ClearAcceleration);
+	void DisableRotationInertia();
 	void SetMovementState(ETankMovementState NewMovementState);
 protected:
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	/** Update Velocity based on input. Also applies gravity. */
 	//virtual void ApplyControlInputToVelocity(float DeltaTime);
 

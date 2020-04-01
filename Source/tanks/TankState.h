@@ -21,6 +21,22 @@ enum class ETankMovementState : uint8
 	RotateRight			UMETA(DisplayName = "Tank turning right"),
 };
 
+UENUM(BlueprintType)
+enum class ETankMovementInertia : uint8
+{
+	None 				UMETA(DisplayName = "No inertia"),
+	MoveForward 		UMETA(DisplayName = "Tank moves forward with Acceleration"),
+	MoveBackward		UMETA(DisplayName = "Tank moves backward with Acceleration"),
+};
+
+UENUM(BlueprintType)
+enum class ETankRotationInertia : uint8
+{
+	None 				UMETA(DisplayName = "No inertia"),
+	RotateLeft			UMETA(DisplayName = "Visually Shake tank left with Acceleration, uses timer"),
+	RotateRight			UMETA(DisplayName = "Visually Shake tank right with Acceleration, uses timer"),
+};
+
 /*
 UCLASS()
 class TANKS_API ATankState : public APlayerState {

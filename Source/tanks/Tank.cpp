@@ -64,7 +64,7 @@ ATank::ATank()
 	spring_arm->SetWorldRotation(FRotator(-60.0, -90.0, 0.0));
 	spring_arm->TargetArmLength = DEFAULT_ZOOM_DIST;
 
-	collision->SetWorldRotation(FRotator(0, 180, 0.0));
+	collision->SetWorldRotation(FRotator(0, YAW_OFFSET, 0.0));
 	collision->SetCollisionProfileName(TEXT("Pawn"));
 	collision->SetGenerateOverlapEvents(true);
 	//collision->SetWorldLocation(FVector(0, 0, 150));
@@ -304,6 +304,21 @@ void ATank::OnHealthUpdate()
 	/*
 		Any special functionality that should occur as a result of damage or death should be placed here.
 	*/
+}
+
+//Calls on clients
+void ATank::OnMovementStateChanged(ETankMovementState MovementState) {
+	UE_LOG(LogTemp, Warning, TEXT("OnMovementStateChanged"));
+}
+
+//Calls on clients
+void ATank::OnMovementInertiaEnabled(ETankMovementInertia MovementInertia) {
+	UE_LOG(LogTemp, Warning, TEXT("OnMovementInertiaEnabled"));
+}
+
+//Calls on clients
+void ATank::OnRotationInertiaEnabled(ETankRotationInertia RotationInteria) {
+	UE_LOG(LogTemp, Warning, TEXT("OnRotationInertiaEnabled"));
 }
 
 FVector ATank::GetForwardVector() {

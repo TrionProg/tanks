@@ -97,6 +97,16 @@ public:
 	FVector GetForwardVector();
 	FVector GetRightVector();
 
+	//Calls on clients
+	//UFUNCTION(BlueprintImplementableEvent)
+	virtual void OnMovementStateChanged(ETankMovementState MovementState);
+
+	//Calls on clients
+	//UFUNCTION(BlueprintImplementableEvent)
+	virtual void OnMovementInertiaEnabled(ETankMovementInertia MovementInertia);
+
+	//Calls on clients
+	virtual void OnRotationInertiaEnabled(ETankRotationInertia RotationInteria);
 };
 
 float calc_angle_between_vectors_2d(FVector a, FVector b);
