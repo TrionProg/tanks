@@ -15,6 +15,7 @@
 #include "Projectile.h"
 #include "TankPlayerController.h"
 #include "TankPlayerState.h"
+#include "Specter.h"
 
 #include "Math/UnrealMathUtility.h"
 
@@ -532,8 +533,25 @@ bool ATank::ApplyDamage(float Damage, ETankDamageLocation DamageLocation) {
 }
 
 void ATank::OnDeathOnServer() {
+	if (auto TankController = GetController()) {
+		if (auto TankPlayerController = Cast<ATankPlayerController>(TankController)) {
+			if (auto world = get_world().match()) {
+				auto location = spring_arm->GetComponentLocation();
+
+				auto rotation = FRotator(0.0, 90.0, 0.0);
+				auto spawn_info = FActorSpawnParameters();
+				spawn_info.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+				ASpecter* specter = (ASpecter*)world->SpawnActor(ASpecter::StaticClass(), &location, &rotation, spawn_info);
+				specter->SetZoom(spring_arm->TargetArmLength);
+
+				TankPlayerController->Possess(specter);
+			}
+		}
+	}
+
 	//TODO Possess player to be spectator, set respawn counter to PlayerState and Controler
-	//Destroy();
+	Destroy();
 }
 
 void ATank::OnDeathMulticast_Implementation() {
