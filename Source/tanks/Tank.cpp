@@ -133,9 +133,14 @@ ATank::ATank()
 
 	//SetIsReplicated(true);
 
-	shot_interval = 1;
-	start_health = 3;
+	//---Movement---
 	prev_float_value = 0;
+
+	//---Shooting---
+	ShootInterval = 1;
+
+	//---Health---
+	StartHealth = 100;
 
 	//ShootProjectile = AProjectile::GetClass();
 
@@ -147,8 +152,15 @@ void ATank::BeginPlay()
 {
 	Super::BeginPlay();
 
-	Health = start_health;
+	//---Movement---
 	prev_float_value = 0;
+
+	//---Shooting---
+	ShootInterval = 1;
+
+	//---Health---
+	Health = StartHealth;
+	
 
 	//movement_component->SetSpeed(300);
 	//movement_component->SetSpinSpeed(40);
@@ -242,14 +254,54 @@ UPawnMovementComponent* ATank::GetMovementComponent() const {
 	return (UPawnMovementComponent*)movement_component;
 }
 
-void ATank::AddMovementInput(FVector WorldDirection, float ScaleValue, bool bForce) {
-	UE_LOG(LogTemp, Warning, TEXT("ATank AddMovementInput"));
-}
-
-//My methods
+//---Util---
 
 OptionPtr<UWorld> ATank::get_world() {
 	return OptionPtr<UWorld>::new_unchecked(GetWorld());
+}
+
+int32 ATank::GetPlayerId() {
+	if (auto TankController = GetController()) {
+		if (auto TankPlayerController = Cast<ATankPlayerController>(TankController)) {
+			//if (ATankPlayerState* TankPlayerState = TankController->GetPlayerState()) { Он не может вывести тип Т.. какой же придурок
+			if (auto TankPlayerState = TankController->GetPlayerState<ATankPlayerState>()) {
+				return TankPlayerState->GetPlayerId();
+			}
+		}
+	}
+
+	return BOT_PLAYER_ID;
+}
+
+float calc_angle_between_vectors_2d(FVector a, FVector b) {
+	return calc_angle_between_vectors_2d_rad(a, b) * (180.0f / (float)PI);
+}
+
+float calc_angle_between_vectors_2d_rad(FVector a, FVector b) {
+	auto scalar_mul = a.X * b.X + a.Y * b.Y;
+	auto pseudoscalar_mul = a.X * b.Y - a.Y * b.X;
+
+	float angle = 0.0;
+
+	if (scalar_mul < -1.0 + EPS) { //надо лететь точно назад, формирует 8ку когда векторы <--.--> как бонус
+		angle = PI;
+	}
+	else if (scalar_mul < 1.0 - EPS) { //можем вычислить угол
+		if (pseudoscalar_mul > 0.0) {
+			angle = FMath::Acos(scalar_mul);
+		}
+		else {
+			angle = -FMath::Acos(scalar_mul);
+		}
+	}
+
+	return angle;
+}
+
+//---Movement---
+
+void ATank::AddMovementInput(FVector WorldDirection, float ScaleValue, bool bForce) {
+	UE_LOG(LogTemp, Warning, TEXT("ATank AddMovementInput"));
 }
 
 void ATank::input_move_forward(float value) {
@@ -275,30 +327,7 @@ void ATank::input_rotate_right() {
 	movement_component->SendMovementCommand(ETankMovementCommand::RotateRight);
 }
 
-//Works on client
-void ATank::input_shoot() {
-	if (auto controller = GetController()) {
-		if (controller->IsLocalPlayerController()) {
-			//TODO check if wtank can to shoot
-
-			OnShoot();
-		}
-	}
-
-	/*
-	if (auto world = get_world().match()) {
-		const auto spawn_rotation = gun_muzzle->GetComponentRotation();
-		const auto spawn_location = gun_muzzle->GetComponentLocation();
-
-		//Set Spawn Collision Handling Override
-		FActorSpawnParameters ActorSpawnParams;
-		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
-
-		// spawn the projectile at the muzzle
-		world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
-	}
-	*/
-}
+//---Zoom---
 
 void ATank::input_zoom_in() {
 	if (spring_arm->TargetArmLength - ZOOM_STEP > MIN_ZOOM_DIST) {
@@ -318,20 +347,7 @@ void ATank::input_zoom_out() {
 	}
 }
 
-int32 ATank::GetPlayerId() {
-	if (auto TankController = GetController()) {
-		if (auto TankPlayerController = Cast<ATankPlayerController>(TankController)) {
-			//if (ATankPlayerState* TankPlayerState = TankController->GetPlayerState()) { Он не может вывести тип Т.. какой же придурок
-			if (auto TankPlayerState = TankController->GetPlayerState<ATankPlayerState>()) {
-				return TankPlayerState->GetPlayerId();
-			}
-		}
-	}
-
-	return BOT_PLAYER_ID;
-}
-
-//Network
+//---Network---
 
 void ATank::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> & OutLifetimeProps) const
 {
@@ -341,84 +357,7 @@ void ATank::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> & OutLifetimeP
 	DOREPLIFETIME(ATank, Health);
 }
 
-void ATank::OnRep_CurrentHealth()
-{
-	OnHealthUpdate();
-}
-
-void ATank::OnHealthUpdate()
-{
-	//Client-specific functionality
-	if (IsLocallyControlled())
-	{
-		FString healthMessage = FString::Printf(TEXT("You now have %f health remaining."), Health);
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, healthMessage);
-
-		if (Health <= 0)
-		{
-			FString deathMessage = FString::Printf(TEXT("You have been killed."));
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, deathMessage);
-		}
-	}
-
-	//Server-specific functionality
-	if (Role == ROLE_Authority)
-	{
-		FString healthMessage = FString::Printf(TEXT("%s now has %f health remaining."), *GetFName().ToString(), Health);
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, healthMessage);
-	}
-
-	//Functions that occur on all machines. 
-	/*
-		Any special functionality that should occur as a result of damage or death should be placed here.
-	*/
-}
-
-//Player shoots, runs on server
-void ATank::OnShoot_Implementation() {
-	//TODO check if wtank can to shoot
-
-	OnShootOnServer();
-}
-
-//Works on server for all(players and bots)
-void ATank::OnShootOnServer() {
-	if (auto world = get_world().match()) {
-		const auto spawn_rotation = gun_muzzle->GetComponentRotation();
-		const auto spawn_location = gun_muzzle->GetComponentLocation();
-
-		//Set Spawn Collision Handling Override
-		FActorSpawnParameters ActorSpawnParams;
-		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
-
-		// spawn the projectile at the muzzle
-		world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
-	}
-
-	OnShootMulticast(GetPlayerId());
-}
-
-void ATank::OnShootMulticast_Implementation(int32 ShootInstigator) {
-	UE_LOG(LogTemp, Warning, TEXT("Multicast %d"), ShootInstigator);
-	if (ShootInstigator != BOT_PLAYER_ID) {
-		UE_LOG(LogTemp, Warning, TEXT("Except player %d"), ShootInstigator);
-		if (ShootInstigator == GetPlayerId()) {
-			return;
-		}
-	}
-
-	if (auto world = get_world().match()) {
-		const auto spawn_rotation = gun_muzzle->GetComponentRotation();
-		const auto spawn_location = gun_muzzle->GetComponentLocation();
-
-		//Set Spawn Collision Handling Override
-		FActorSpawnParameters ActorSpawnParams;
-		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
-
-		// spawn the projectile at the muzzle
-		world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
-	}
-}
+//---Movement---
 
 //Calls on clients
 void ATank::OnMovementStateChanged(ETankMovementState MovementState) {
@@ -455,30 +394,103 @@ FVector ATank::GetRightVector() {
 	return Direction;
 }
 
-float calc_angle_between_vectors_2d(FVector a, FVector b) {
-	return calc_angle_between_vectors_2d_rad(a, b) * (180.0f / (float)PI);
-}
+//---Shooting---
 
-float calc_angle_between_vectors_2d_rad(FVector a, FVector b) {
-	auto scalar_mul = a.X * b.X + a.Y * b.Y;
-	auto pseudoscalar_mul = a.X * b.Y - a.Y * b.X;
+//Works on client
+void ATank::input_shoot() {
+	if (auto controller = GetController()) {
+		if (controller->IsLocalPlayerController()) {
+			//TODO check if tank can to shoot
 
-	float angle = 0.0;
-
-	if (scalar_mul < -1.0 + EPS) { //надо лететь точно назад, формирует 8ку когда векторы <--.--> как бонус
-		angle = PI;
-	}
-	else if (scalar_mul < 1.0 - EPS) { //можем вычислить угол
-		if (pseudoscalar_mul > 0.0) {
-			angle = FMath::Acos(scalar_mul);
-		}
-		else {
-			angle = -FMath::Acos(scalar_mul);
+			OnShoot();
+			OnShootOnClient();
 		}
 	}
-
-	return angle;
 }
+
+//Player shoots, runs on server
+void ATank::OnShoot_Implementation() {
+	//TODO check if wtank can to shoot
+
+	OnShootOnServer();
+}
+
+//Works on server for all(players and bots)
+void ATank::OnShootOnServer() {
+	if (auto world = get_world().match()) {
+		const auto spawn_rotation = gun_muzzle->GetComponentRotation();
+		const auto spawn_location = gun_muzzle->GetComponentLocation();
+
+		//Set Spawn Collision Handling Override
+		FActorSpawnParameters ActorSpawnParams;
+		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
+		// spawn the projectile at the muzzle
+		world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
+	}
+
+	OnShootMulticast(GetPlayerId());
+}
+
+void ATank::OnShootMulticast_Implementation(int32 ShootInstigator) {
+	if (ShootInstigator != BOT_PLAYER_ID) {
+		if (ShootInstigator == GetPlayerId()) {
+			return;
+		}
+	}
+
+	OnShootOnClient();
+}
+
+void ATank::OnShootOnClient() {
+	if (auto world = get_world().match()) {
+		const auto spawn_rotation = gun_muzzle->GetComponentRotation();
+		const auto spawn_location = gun_muzzle->GetComponentLocation();
+
+		//Set Spawn Collision Handling Override
+		FActorSpawnParameters ActorSpawnParams;
+		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
+		// spawn the projectile at the muzzle
+		world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
+	}
+}
+
+//---Health---
+
+void ATank::OnRep_CurrentHealth()
+{
+	OnHealthUpdate();
+}
+
+void ATank::OnHealthUpdate()
+{
+	//Client-specific functionality
+	if (IsLocallyControlled())
+	{
+		FString healthMessage = FString::Printf(TEXT("You now have %f health remaining."), Health);
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, healthMessage);
+
+		if (Health <= 0)
+		{
+			FString deathMessage = FString::Printf(TEXT("You have been killed."));
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, deathMessage);
+		}
+	}
+
+	//Server-specific functionality
+	if (Role == ROLE_Authority)
+	{
+		FString healthMessage = FString::Printf(TEXT("%s now has %f health remaining."), *GetFName().ToString(), Health);
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, healthMessage);
+	}
+
+	//Functions that occur on all machines. 
+	/*
+		Any special functionality that should occur as a result of damage or death should be placed here.
+	*/
+}
+
 
 ETankDamageLocation ATank::CalcDamageLocation(UPrimitiveComponent* TankComp) {
 	auto DamageLocation = ETankDamageLocation::Board;
@@ -506,7 +518,42 @@ ETankDamageLocation ATank::CalcDamageLocation(UPrimitiveComponent* TankComp) {
 }
 
 bool ATank::ApplyDamage(float Damage, ETankDamageLocation DamageLocation) {
-	UE_LOG(LogTemp, Warning, TEXT("Damage Tank %f"), Damage);
+	UE_LOG(LogTemp, Warning, TEXT("Damage.."));
+	Health -= Damage;
+
+	if (Health < 0) {
+		OnDeathOnServer();
+		OnDeathMulticast();
+
+		return true;
+	}
 
 	return false;
+}
+
+void ATank::OnDeathOnServer() {
+	//TODO Possess player to be spectator, set respawn counter to PlayerState and Controler
+	//Destroy();
+}
+
+void ATank::OnDeathMulticast_Implementation() {
+	if (auto TankController = GetController()) {
+		if (auto TankPlayerController = Cast<ATankPlayerController>(TankController)) {
+			if (TankPlayerController->IsLocalPlayerController()) {
+				OnPlayerDeath();
+			}
+		}
+	}
+	OnDeathOnClient();
+}
+
+void ATank::OnDeathOnClient() {
+	//Explode..
+	//Destroy();
+}
+
+void ATank::OnPlayerDeath() {
+	UE_LOG(LogTemp, Warning, TEXT("You are dead"));
+	//Unpossess, etc..
+	//Destroy();
 }

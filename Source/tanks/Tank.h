@@ -56,20 +56,6 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	class UTankMovementComponent* movement_component;
-
-	UPROPERTY(ReplicatedUsing = OnRep_CurrentHealth)
-	float Health;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
-	float shot_interval;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
-	float start_health;
-
-	UPROPERTY(EditDefaultsOnly, Category = Projectile)
-	TSubclassOf<class AProjectile> ShootProjectile;
-
-	float prev_float_value;
 //UE events and methods
 protected:
 	// Called when the game starts or when spawned
@@ -84,52 +70,37 @@ protected:
 
 	virtual UPawnMovementComponent* GetMovementComponent() const override;
 
-	//UFUNCTION(BlueprintCallable, Category = "Pawn|Input", meta = (Keywords = "AddInput"))
-	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1.0f, bool bForce = false) override;
-
 	//virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1.0f, bool bForce = false) override;
 public:
 	// Sets default values for this pawn's properties
 	ATank();
-//My methods
+
+//===Util===
 private:
 	OptionPtr<UWorld> get_world();
+	int32 GetPlayerId();
+
+//===Zoom===
+private:
+	void input_zoom_in();
+	void input_zoom_out();
+
+//===Network===
+protected:
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+//===Movement===
+private:
+	float prev_float_value;
 
 	void input_move_forward(float value);
 	void input_rotate_left();
 	void input_rotate_right();
 
-	//Works on client
-	void input_shoot();
-
-	void input_zoom_in();
-	void input_zoom_out();
-
-//Network
 protected:
-	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	//UFUNCTION(BlueprintCallable, Category = "Pawn|Input", meta = (Keywords = "AddInput"))
+	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1.0f, bool bForce = false) override;
 
-	UFUNCTION()
-	void OnRep_CurrentHealth();
-
-	/** Response to health being updated. Called on the server immediately after modification, and on clients in response to a RepNotify*/
-	void OnHealthUpdate();
-
-	//Player shoots, runs on server
-	UFUNCTION(Server, Reliable)
-	void OnShoot();
-
-	//Works on server for all(players and bots)
-	void OnShootOnServer();
-
-	//Works on clients
-	UFUNCTION(NetMulticast, Reliable)
-	void OnShootMulticast(int32 ShootInstigator);
-	//void OnShootMulticast(int32 instigator);
-
-	int32 GetPlayerId();
-
-	//void shoot();
 public:
 	FVector GetForwardVector();
 	FVector GetRightVector();
@@ -144,13 +115,70 @@ public:
 
 	//Calls on clients
 	virtual void OnRotationInertiaEnabled(ETankRotationInertia RotationInteria);
+	
+//===Shooting===
+protected:
+	UPROPERTY(EditDefaultsOnly, Category = Projectile)
+	TSubclassOf<class AProjectile> ShootProjectile;
 
-	ETankDamageLocation CalcDamageLocation(UPrimitiveComponent* TankComp);
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
+	float ShootInterval;
 
+	//TODO ammo, interval
+private:
+	//Works on client
+	void input_shoot();
+
+	//Player shoots, runs on server
+	UFUNCTION(Server, Reliable)
+	void OnShoot();
+
+	//Works on server for all(players and bots)
+	void OnShootOnServer();
+
+	//Works on clients
+	UFUNCTION(NetMulticast, Reliable)
+	void OnShootMulticast(int32 ShootInstigator);
+
+	//Works on clients and spawns visual projectile
+	void OnShootOnClient();
+
+//===Health===
+protected:
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentHealth)
+	float Health;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
+	float StartHealth;
+
+	UFUNCTION()
+	void OnRep_CurrentHealth();
+
+	/** Response to health being updated. Called on the server immediately after modification, and on clients in response to a RepNotify*/
+	void OnHealthUpdate();
+
+	//Works on server
+	void OnDeathOnServer();
+
+	//Works on clients
+	UFUNCTION(NetMulticast, Reliable)
+	void OnDeathMulticast();
+
+	//Works on clients
+	void OnDeathOnClient();
+
+	//Works on client who is player
+	void OnPlayerDeath();
+
+public:
 	//Only on server
 	UFUNCTION(BlueprintCallable)
 	bool ApplyDamage(float Damage, ETankDamageLocation DamageLocation);
+
+	ETankDamageLocation CalcDamageLocation(UPrimitiveComponent* TankComp);
+
 };
 
+//===Util===
 float calc_angle_between_vectors_2d(FVector a, FVector b);
 float calc_angle_between_vectors_2d_rad(FVector a, FVector b);
