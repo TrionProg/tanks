@@ -3,3 +3,6 @@
 
 #include "TankPlayerState.h"
 
+int32 ATankPlayerState::GetPlayerId() {
+	return PlayerId;
+}

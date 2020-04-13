@@ -269,7 +269,7 @@ void UTankMovementComponent::TickComponent(float dt, ELevelTick TickType, FActor
 		}
 
 		//if (Controller->HasAuthority()) {
-			UE_LOG(LogTemp, Warning, TEXT("NewYaw %f"), Yaw);
+			//UE_LOG(LogTemp, Warning, TEXT("NewYaw %f"), Yaw);
 		//}
 
 		if (Yaw > 180) {
@@ -617,8 +617,6 @@ void UTankMovementComponent::OnMovementStateChanged_Implementation(ETankMovement
 
 	if (Controller->HasAuthority()) {
 		if (Controller->IsPlayerController()) {
-			UE_LOG(LogTemp, Warning, TEXT("Server:controlled by player"));
-
 			//Just send it like command, and server will react on this(+dt), in best case we need filter command here
 			auto NewMovementCommand = ETankMovementCommand::Stand;
 
@@ -646,12 +644,15 @@ void UTankMovementComponent::OnMovementStateChanged_Implementation(ETankMovement
 }
 
 void UTankMovementComponent::OnRep_MovementState() {
+	SimulateMovement();
+	/*
 	auto Tank = (ATank*)PawnOwner; //TODO safe cast
+
 
 	UE_LOG(LogTemp, Warning, TEXT("=============="));
 
-	FString message = FString::Printf(TEXT("Other tank moved"));
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, message); //печатает всем
+	//FString message = FString::Printf(TEXT("Other tank moved"));
+	//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, message); //печатает всем
 
 	switch (Tank->GetNetMode()) {
 	case NM_Standalone: UE_LOG(LogTemp, Warning, TEXT("---Standalone")); break;
@@ -662,6 +663,17 @@ void UTankMovementComponent::OnRep_MovementState() {
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("======---========"));
+	*/
+}
+
+void UTankMovementComponent::SimulateMovement() {
+	switch (Movement_State) {
+	case ETankMovementState::Stand: UE_LOG(LogTemp, Warning, TEXT("==Stand==")); break;
+	case ETankMovementState::MoveForward: UE_LOG(LogTemp, Warning, TEXT("==MoveForward==")); break;
+	case ETankMovementState::MoveBackward: UE_LOG(LogTemp, Warning, TEXT("==MoveBackward==")); break;
+	case ETankMovementState::RotateLeft: UE_LOG(LogTemp, Warning, TEXT("==RotateLeft==")); break;
+	case ETankMovementState::RotateRight: UE_LOG(LogTemp, Warning, TEXT("==RotateRight==")); break;
+	}
 }
 
 /*
@@ -679,7 +691,7 @@ void UTankMovementComponent::SynchronizePlayerWithClient_Implementation(FVector 
 void UTankMovementComponent::SynchronizePlayerWithClient_Implementation(FPlayerSynchronizationData SyncData) {
 	auto Tank = (ATank*)PawnOwner; //TODO safe cast
 
-	UE_LOG(LogTemp, Warning, TEXT("Sync2 %f %f %f %f"), SyncData.Yaw, SyncData.CurrentSpeed, SyncData.CurrentSpinSpeed, SyncData.RotateOn);
+	//UE_LOG(LogTemp, Warning, TEXT("Sync2 %f %f %f %f"), SyncData.Yaw, SyncData.CurrentSpeed, SyncData.CurrentSpinSpeed, SyncData.RotateOn);
 
 	auto Location = Tank->GetActorLocation();
 

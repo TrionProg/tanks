@@ -12,6 +12,9 @@
 #include "Runtime/Engine/Classes/Components/BoxComponent.h"
 #include "TankMovementComponent.h"
 #include "TankState.h"
+#include "Projectile.h"
+#include "TankPlayerController.h"
+#include "TankPlayerState.h"
 
 #include "Math/UnrealMathUtility.h"
 
@@ -59,6 +62,9 @@ ATank::ATank()
 	body->SetWorldLocation(FVector(0, -35, -150.0));
 	body->SetCollisionEnabled(ECollisionEnabled::Type::NoCollision);
 
+	gun_muzzle->SetRelativeLocation(FVector(0, 500, 140.0));
+	gun_muzzle->SetRelativeRotation(FRotator(0, 90, 0));
+
 	spring_arm->bAbsoluteRotation = true;
 	spring_arm->bDoCollisionTest = false; //Let objects to hide the pawn
 	spring_arm->SetWorldRotation(FRotator(-60.0, -90.0, 0.0));
@@ -72,6 +78,56 @@ ATank::ATank()
 	movement_component->SetUpdatedComponent(collision);
 	movement_component->SetIsReplicated(true);
 
+	//Hitboxes
+	left_caterpillar_hitbox = CreateDefaultSubobject<UBoxComponent>(TEXT("left_caterpillar_hitbox"));
+	left_caterpillar_hitbox->SetupAttachment(body);
+	left_caterpillar_hitbox->SetWorldScale3D(FVector(1.1, 10.75, 2.75));
+	left_caterpillar_hitbox->SetRelativeLocation(FVector(-185, 0, 90));
+	left_caterpillar_hitbox->SetCollisionProfileName(TEXT("TankHitbox"));
+
+	right_caterpillar_hitbox = CreateDefaultSubobject<UBoxComponent>(TEXT("right_caterpillar_hitbox"));
+	right_caterpillar_hitbox->SetupAttachment(body);
+	right_caterpillar_hitbox->SetWorldScale3D(FVector(1.1, 10.75, 2.75));
+	right_caterpillar_hitbox->SetRelativeLocation(FVector(185, 0, 90));
+	right_caterpillar_hitbox->SetCollisionProfileName(TEXT("TankHitbox"));
+
+	left_board_hitbox = CreateDefaultSubobject<UBoxComponent>(TEXT("left_board_hitbox"));
+	left_board_hitbox->SetupAttachment(body);
+	left_board_hitbox->SetWorldScale3D(FVector(0.2, 10, 2.2));
+	left_board_hitbox->SetRelativeLocation(FVector(-143, -25, 156));
+	left_board_hitbox->SetCollisionProfileName(TEXT("TankHitbox"));
+
+	right_board_hitbox = CreateDefaultSubobject<UBoxComponent>(TEXT("right_board_hitbox"));
+	right_board_hitbox->SetupAttachment(body);
+	right_board_hitbox->SetWorldScale3D(FVector(0.2, 10, 2.2));
+	right_board_hitbox->SetRelativeLocation(FVector(145, -25, 156));
+	right_board_hitbox->SetCollisionProfileName(TEXT("TankHitbox"));
+
+	forehead_hitbox = CreateDefaultSubobject<UBoxComponent>(TEXT("forehead_hitbox"));
+	forehead_hitbox->SetupAttachment(body);
+	forehead_hitbox->SetWorldScale3D(FVector(4.5, 1.75, 1.75));
+	forehead_hitbox->SetRelativeRotation(FRotator(0, 0, -45));
+	forehead_hitbox->SetRelativeLocation(FVector(0, 295, 147));
+	forehead_hitbox->SetCollisionProfileName(TEXT("TankHitbox"));
+
+	stern_hitbox = CreateDefaultSubobject<UBoxComponent>(TEXT("stern_hitbox"));
+	stern_hitbox->SetupAttachment(body);
+	stern_hitbox->SetWorldScale3D(FVector(4.5, 0.5, 2.2));
+	stern_hitbox->SetRelativeLocation(FVector(0, -330, 156));
+	stern_hitbox->SetCollisionProfileName(TEXT("TankHitbox"));
+
+	turret_hitbox = CreateDefaultSubobject<UBoxComponent>(TEXT("turret_hitbox"));
+	turret_hitbox->SetupAttachment(body);
+	turret_hitbox->SetWorldScale3D(FVector(4, 4.2, 1.5));
+	turret_hitbox->SetRelativeLocation(FVector(0, 50, 270));
+	turret_hitbox->SetCollisionProfileName(TEXT("TankHitbox"));
+
+	gun_hitbox = CreateDefaultSubobject<UBoxComponent>(TEXT("gun_hitbox"));
+	gun_hitbox->SetupAttachment(body);
+	gun_hitbox->SetWorldScale3D(FVector(0.8, 4.3, 0.8));
+	gun_hitbox->SetRelativeLocation(FVector(0, 320, 260));
+	gun_hitbox->SetCollisionProfileName(TEXT("TankHitbox"));
+
 	SetReplicatingMovement(true);
 	//ReplicatedMovement = true;
 
@@ -80,6 +136,8 @@ ATank::ATank()
 	shot_interval = 1;
 	start_health = 3;
 	prev_float_value = 0;
+
+	//ShootProjectile = AProjectile::GetClass();
 
 	this->OnDestroyed.AddDynamic(this, &ATank::Destroyed);
 }
@@ -206,43 +264,40 @@ void ATank::input_move_forward(float value) {
 
 		prev_float_value = value;
 	}
-	/*
-	if (value > 0) {
-		movement_component->SetMovement(ETankMovement::MoveForward);
-	}else if (value < 0) {
-		movement_component->SetMovement(ETankMovement::MoveBackward);
-	}else {
-		movement_component->SetMovement(ETankMovement::Stand);
-	}
-	*/
-	//FVector force_to_add = movement_force * value * FVector(0, 1, 0);
-	//auto root = (USceneComponent*)RootComponent;
-	//root->AddLocalOffset(force_to_add);
-	//should_move_left = -value;
 }
 
 void ATank::input_rotate_left() {
 	UE_LOG(LogTemp, Warning, TEXT("Input RotateLeft--"));
 	movement_component->SendMovementCommand(ETankMovementCommand::RotateLeft);
-	//FVector force_to_add = movement_force * value * FVector(1, 0, 0);
-	//auto root = (USceneComponent*)RootComponent;
-	//root->AddLocalOffset(force_to_add);
-	//should_move_up = value;
 }
 
 void ATank::input_rotate_right() {
 	movement_component->SendMovementCommand(ETankMovementCommand::RotateRight);
-	//FVector force_to_add = movement_force * value * FVector(1, 0, 0);
-	//auto root = (USceneComponent*)RootComponent;
-	//root->AddLocalOffset(force_to_add);
-	//should_move_up = value;
 }
 
+//Works on client
 void ATank::input_shoot() {
-	//FVector force_to_add = movement_force * value * FVector(1, 0, 0);
-	//auto root = (USceneComponent*)RootComponent;
-	//root->AddLocalOffset(force_to_add);
-	//should_move_up = value;
+	if (auto controller = GetController()) {
+		if (controller->IsLocalPlayerController()) {
+			//TODO check if wtank can to shoot
+
+			OnShoot();
+		}
+	}
+
+	/*
+	if (auto world = get_world().match()) {
+		const auto spawn_rotation = gun_muzzle->GetComponentRotation();
+		const auto spawn_location = gun_muzzle->GetComponentLocation();
+
+		//Set Spawn Collision Handling Override
+		FActorSpawnParameters ActorSpawnParams;
+		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
+		// spawn the projectile at the muzzle
+		world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
+	}
+	*/
 }
 
 void ATank::input_zoom_in() {
@@ -261,6 +316,19 @@ void ATank::input_zoom_out() {
 	else {
 		spring_arm->TargetArmLength = MAX_ZOOM_DIST;
 	}
+}
+
+int32 ATank::GetPlayerId() {
+	if (auto TankController = GetController()) {
+		if (auto TankPlayerController = Cast<ATankPlayerController>(TankController)) {
+			//if (ATankPlayerState* TankPlayerState = TankController->GetPlayerState()) { Он не может вывести тип Т.. какой же придурок
+			if (auto TankPlayerState = TankController->GetPlayerState<ATankPlayerState>()) {
+				return TankPlayerState->GetPlayerId();
+			}
+		}
+	}
+
+	return BOT_PLAYER_ID;
 }
 
 //Network
@@ -304,6 +372,52 @@ void ATank::OnHealthUpdate()
 	/*
 		Any special functionality that should occur as a result of damage or death should be placed here.
 	*/
+}
+
+//Player shoots, runs on server
+void ATank::OnShoot_Implementation() {
+	//TODO check if wtank can to shoot
+
+	OnShootOnServer();
+}
+
+//Works on server for all(players and bots)
+void ATank::OnShootOnServer() {
+	if (auto world = get_world().match()) {
+		const auto spawn_rotation = gun_muzzle->GetComponentRotation();
+		const auto spawn_location = gun_muzzle->GetComponentLocation();
+
+		//Set Spawn Collision Handling Override
+		FActorSpawnParameters ActorSpawnParams;
+		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
+		// spawn the projectile at the muzzle
+		world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
+	}
+
+	OnShootMulticast(GetPlayerId());
+}
+
+void ATank::OnShootMulticast_Implementation(int32 ShootInstigator) {
+	UE_LOG(LogTemp, Warning, TEXT("Multicast %d"), ShootInstigator);
+	if (ShootInstigator != BOT_PLAYER_ID) {
+		UE_LOG(LogTemp, Warning, TEXT("Except player %d"), ShootInstigator);
+		if (ShootInstigator == GetPlayerId()) {
+			return;
+		}
+	}
+
+	if (auto world = get_world().match()) {
+		const auto spawn_rotation = gun_muzzle->GetComponentRotation();
+		const auto spawn_location = gun_muzzle->GetComponentLocation();
+
+		//Set Spawn Collision Handling Override
+		FActorSpawnParameters ActorSpawnParams;
+		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
+		// spawn the projectile at the muzzle
+		world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
+	}
 }
 
 //Calls on clients
@@ -364,4 +478,35 @@ float calc_angle_between_vectors_2d_rad(FVector a, FVector b) {
 	}
 
 	return angle;
+}
+
+ETankDamageLocation ATank::CalcDamageLocation(UPrimitiveComponent* TankComp) {
+	auto DamageLocation = ETankDamageLocation::Board;
+
+	if (TankComp == left_caterpillar_hitbox || TankComp == right_caterpillar_hitbox) {
+		DamageLocation = ETankDamageLocation::Caterpillar;
+	}
+	else if (TankComp == left_board_hitbox || TankComp == right_board_hitbox) {
+		DamageLocation = ETankDamageLocation::Board;
+	}
+	else if (TankComp == forehead_hitbox) {
+		DamageLocation = ETankDamageLocation::Forehead;
+	}
+	else if (TankComp == stern_hitbox) {
+		DamageLocation = ETankDamageLocation::Stern;
+	}
+	else if (TankComp == turret_hitbox) {
+		DamageLocation = ETankDamageLocation::Turret;
+	}
+	else if (TankComp == gun_hitbox) {
+		DamageLocation = ETankDamageLocation::Gun;
+	}
+
+	return DamageLocation;
+}
+
+bool ATank::ApplyDamage(float Damage, ETankDamageLocation DamageLocation) {
+	UE_LOG(LogTemp, Warning, TEXT("Damage Tank %f"), Damage);
+
+	return false;
 }

@@ -12,6 +12,8 @@
 
 #include "Tank.generated.h"
 
+const int32 BOT_PLAYER_ID = -1;
+
 UCLASS()
 class TANKS_API ATank : public APawn
 {
@@ -35,6 +37,23 @@ protected:
 	UPROPERTY(EditAnyWhere)
 	UShapeComponent* collision;
 
+	UPROPERTY(EditAnyWhere)
+	UShapeComponent* left_caterpillar_hitbox;
+	UPROPERTY(EditAnyWhere)
+	UShapeComponent* right_caterpillar_hitbox;
+	UPROPERTY(EditAnyWhere)
+	UShapeComponent* left_board_hitbox;
+	UPROPERTY(EditAnyWhere)
+	UShapeComponent* right_board_hitbox;
+	UPROPERTY(EditAnyWhere)
+	UShapeComponent* forehead_hitbox;
+	UPROPERTY(EditAnyWhere)
+	UShapeComponent* stern_hitbox;
+	UPROPERTY(EditAnyWhere)
+	UShapeComponent* turret_hitbox;
+	UPROPERTY(EditAnyWhere)
+	UShapeComponent* gun_hitbox;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	class UTankMovementComponent* movement_component;
 
@@ -46,6 +65,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
 	float start_health;
+
+	UPROPERTY(EditDefaultsOnly, Category = Projectile)
+	TSubclassOf<class AProjectile> ShootProjectile;
 
 	float prev_float_value;
 //UE events and methods
@@ -77,6 +99,7 @@ private:
 	void input_rotate_left();
 	void input_rotate_right();
 
+	//Works on client
 	void input_shoot();
 
 	void input_zoom_in();
@@ -91,6 +114,20 @@ protected:
 
 	/** Response to health being updated. Called on the server immediately after modification, and on clients in response to a RepNotify*/
 	void OnHealthUpdate();
+
+	//Player shoots, runs on server
+	UFUNCTION(Server, Reliable)
+	void OnShoot();
+
+	//Works on server for all(players and bots)
+	void OnShootOnServer();
+
+	//Works on clients
+	UFUNCTION(NetMulticast, Reliable)
+	void OnShootMulticast(int32 ShootInstigator);
+	//void OnShootMulticast(int32 instigator);
+
+	int32 GetPlayerId();
 
 	//void shoot();
 public:
@@ -107,6 +144,12 @@ public:
 
 	//Calls on clients
 	virtual void OnRotationInertiaEnabled(ETankRotationInertia RotationInteria);
+
+	ETankDamageLocation CalcDamageLocation(UPrimitiveComponent* TankComp);
+
+	//Only on server
+	UFUNCTION(BlueprintCallable)
+	bool ApplyDamage(float Damage, ETankDamageLocation DamageLocation);
 };
 
 float calc_angle_between_vectors_2d(FVector a, FVector b);

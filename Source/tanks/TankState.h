@@ -37,6 +37,17 @@ enum class ETankRotationInertia : uint8
 	RotateRight			UMETA(DisplayName = "Visually Shake tank right with Acceleration, uses timer"),
 };
 
+UENUM(BlueprintType)
+enum class ETankDamageLocation : uint8
+{
+	Caterpillar 				UMETA(DisplayName = "Caterpillar is damaged(speed is lower)"),
+	Board 						UMETA(DisplayName = "Projectile hit into Board"),
+	Forehead					UMETA(DisplayName = "Projectile hit into Forehead"),
+	Stern						UMETA(DisplayName = "Projectile hit into Stern"),
+	Turret						UMETA(DisplayName = "Projectile hit into Turret"),
+	Gun							UMETA(DisplayName = "Projectile hit into Gun(tank can not temporary shoot)"),
+};
+
 /*
 UCLASS()
 class TANKS_API ATankState : public APlayerState {

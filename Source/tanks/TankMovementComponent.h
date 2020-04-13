@@ -152,12 +152,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FloatingPawnMovement)
 	float DecelerationSpin;
 
-	/** Server function for spawning projectiles.*/
 	UFUNCTION(Server, Reliable)
 	void OnMovementStateChanged(ETankMovementState NewMovementState);
 
 	UFUNCTION(Client, Unreliable) //Not releable -- we just help to client
 	void SynchronizePlayerWithClient(FPlayerSynchronizationData SyncData);
+
 	//void SynchronizePlayerWithClient(FVector Pos);
 
 	void SynchronizePlayerWithClientTick(float dt);
@@ -165,6 +165,9 @@ public:
 	void CorrectMovement(FVector NewPosition, ETankMovementState NewMovementState, ETankMovementInertia NewMovementInertia, float NewCurrentSpeed);
 
 	void CorrectRotation(float NewYaw, float NewCurrentSpinSpeed, float NewRotateOn);
+
+	//Works on client for other players and bots
+	void SimulateMovement();
 	/*
 	 * Setting affecting extra force applied when changing direction, making turns have less drift and become more responsive.
 	 * Velocity magnitude is not allowed to increase, that only happens due to normal acceleration. It may decrease with large direction changes.

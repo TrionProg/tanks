@@ -18,6 +18,8 @@ class TANKS_API ATankPlayerState : public APlayerState {
 
 public:
 
+	int32 GetPlayerId();
+
 	//TODO * to allow engine to serialize it?
 	//OptionPtr<class ATankState> Tank;
 	
