@@ -154,6 +154,14 @@ protected:
 	UFUNCTION()
 	void OnRep_CurrentHealth();
 
+public:
+	//Only on server
+	UFUNCTION(BlueprintCallable)
+	bool ApplyDamage(float Damage, ETankDamageLocation DamageLocation);
+
+	ETankDamageLocation CalcDamageLocation(UPrimitiveComponent* TankComp);
+
+private:
 	/** Response to health being updated. Called on the server immediately after modification, and on clients in response to a RepNotify*/
 	void OnHealthUpdate();
 
@@ -171,11 +179,7 @@ protected:
 	void OnPlayerDeath();
 
 public:
-	//Only on server
-	UFUNCTION(BlueprintCallable)
-	bool ApplyDamage(float Damage, ETankDamageLocation DamageLocation);
-
-	ETankDamageLocation CalcDamageLocation(UPrimitiveComponent* TankComp);
+	float GetHealth();
 
 };
 

@@ -535,6 +535,7 @@ bool ATank::ApplyDamage(float Damage, ETankDamageLocation DamageLocation) {
 void ATank::OnDeathOnServer() {
 	if (auto TankController = GetController()) {
 		if (auto TankPlayerController = Cast<ATankPlayerController>(TankController)) {
+			//Spawn specter
 			if (auto world = get_world().match()) {
 				auto location = spring_arm->GetComponentLocation();
 
@@ -547,6 +548,8 @@ void ATank::OnDeathOnServer() {
 
 				TankPlayerController->Possess(specter);
 			}
+
+			TankPlayerController->OnDeathOnServer();
 		}
 	}
 
@@ -574,4 +577,8 @@ void ATank::OnPlayerDeath() {
 	UE_LOG(LogTemp, Warning, TEXT("You are dead"));
 	//Unpossess, etc..
 	//Destroy();
+}
+
+float ATank::GetHealth() {
+	return Health;
 }
