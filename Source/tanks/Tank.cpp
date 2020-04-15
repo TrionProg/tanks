@@ -16,6 +16,7 @@
 #include "TankPlayerController.h"
 #include "TankPlayerState.h"
 #include "Specter.h"
+#include "FlyingText.h"
 
 #include "Math/UnrealMathUtility.h"
 
@@ -529,7 +530,27 @@ bool ATank::ApplyDamage(float Damage, ETankDamageLocation DamageLocation) {
 		return true;
 	}
 
+	OnDamageMulticast(Damage);
+
 	return false;
+}
+
+void ATank::OnDamageMulticast_Implementation(float damage) {
+	OnDamageOnClient(damage);
+}
+
+void ATank::OnDamageOnClient(float damage) {
+	if (auto world = get_world().match()) {
+		auto location = GetActorLocation();
+
+		auto rotation = FRotator::ZeroRotator;
+		auto spawn_info = FActorSpawnParameters();
+		spawn_info.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		AFlyingText* flying_text = (AFlyingText*)world->SpawnActor(DamageFlyingText, &location, &rotation, spawn_info);
+		FString Text = FString::Printf(TEXT("-%f"), (int32)damage);
+		flying_text->SetText(FText::FromString(Text));
+	}
 }
 
 void ATank::OnDeathOnServer() {
@@ -544,6 +565,7 @@ void ATank::OnDeathOnServer() {
 				spawn_info.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 				ASpecter* specter = (ASpecter*)world->SpawnActor(ASpecter::StaticClass(), &location, &rotation, spawn_info);
+				//TODO assert specter
 				specter->SetZoom(spring_arm->TargetArmLength);
 
 				TankPlayerController->Possess(specter);

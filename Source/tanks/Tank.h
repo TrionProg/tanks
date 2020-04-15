@@ -118,7 +118,7 @@ public:
 	
 //===Shooting===
 protected:
-	UPROPERTY(EditDefaultsOnly, Category = Projectile)
+	UPROPERTY(EditDefaultsOnly, Category = Shooting)
 	TSubclassOf<class AProjectile> ShootProjectile;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
@@ -151,6 +151,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
 	float StartHealth;
 
+	UPROPERTY(EditDefaultsOnly, Category = Damage)
+	TSubclassOf<class AFlyingText> DamageFlyingText;
+
 	UFUNCTION()
 	void OnRep_CurrentHealth();
 
@@ -164,6 +167,12 @@ public:
 private:
 	/** Response to health being updated. Called on the server immediately after modification, and on clients in response to a RepNotify*/
 	void OnHealthUpdate();
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void OnDamageMulticast(float damage);
+
+	//Works on clients
+	void OnDamageOnClient(float damage);
 
 	//Works on server
 	void OnDeathOnServer();

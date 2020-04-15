@@ -23,8 +23,12 @@ ATankPlayerController::ATankPlayerController() : Super() {
 	CurrentWidget = nullptr;
 
 	TankPawn = ATank::StaticClass();
+	
+	//PlayingState = EPlayerPlayingState::Playing;
 
-	PlayingState = EPlayerPlayingState::Playing;
+	PlayingState = EPlayerPlayingState::WaitingToSpawn;
+	wait_to_spawn_counter = 0;
+
 }
 
 //---UE Events---
@@ -33,11 +37,14 @@ void ATankPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	change_menu_widget(TankHUD);
-
 	UE_LOG(LogTemp, Warning, TEXT("Player Controller begin play"));
 
 	SetInputMode(FInputModeGameAndUI());
+
+	PlayingState = EPlayerPlayingState::WaitingToSpawn;
+	wait_to_spawn_counter = 3;
+
+	change_menu_widget(SpecterHUD);
 }
 
 void ATankPlayerController::SetupInputComponent() {
