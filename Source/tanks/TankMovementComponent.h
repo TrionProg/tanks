@@ -64,6 +64,7 @@ protected:
 	UPROPERTY(ReplicatedUsing = OnRep_MovementState)
 	ETankMovementState Movement_State;
 	ETankMovementInertia MovementInertia;
+	UPROPERTY(Replicated)
 	ETankRotationInertia RotationInertia;
 	float RotationInertiaTimer;
 

@@ -20,7 +20,12 @@ public:
 
 	int32 GetPlayerId();
 
-	//TODO * to allow engine to serialize it?
-	//OptionPtr<class ATankState> Tank;
+public:
+
+	void SetScore(float score);
+	void GiveScore(float score);
+	float GetScore();
+	//UPROPERTY()
+	//float Score;
 	
 };

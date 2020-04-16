@@ -30,11 +30,14 @@ class TANKS_API UTankHUD : public UUserWidget
 	GENERATED_BODY()
 public:
 	UFUNCTION(BlueprintImplementableEvent)
-	void UpdateMoney(int32 money);
+	void UpdateScore(int32 score);
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void UpdateHealth(const int32 health);
 
 	UFUNCTION(BlueprintImplementableEvent)
-	void UpdateAmmo(const int32 health);
+	void UpdateAmmo(const int32 ammo);
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void UpdateShootInterval(const float percent);
 };

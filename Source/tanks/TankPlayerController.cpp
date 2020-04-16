@@ -45,6 +45,10 @@ void ATankPlayerController::BeginPlay()
 	wait_to_spawn_counter = 3;
 
 	change_menu_widget(SpecterHUD);
+
+	if (auto player_state = get_player_state().match()) {
+		player_state->SetScore(0);
+	}
 }
 
 void ATankPlayerController::SetupInputComponent() {
@@ -164,10 +168,13 @@ void ATankPlayerController::update_hud() {
 	if (auto tank_hud = Cast<UTankHUD>(CurrentWidget)) {
 		if (auto Tank = get_tank().match()) {
 			tank_hud->UpdateHealth(Tank->GetHealth());
+			tank_hud->UpdateAmmo(Tank->GetAmmo());
+			tank_hud->UpdateShootInterval(Tank->GetShootIntervalPercent());
 		}
-		//if (auto player_state = get_player_state().match()) {
-		//	hud->SetMoney(player_state->money);
-		//}
+
+		if (auto player_state = get_player_state().match()) {
+			tank_hud->UpdateScore(player_state->GetScore());
+		}
 
 	}else if (auto specter_hud = Cast<USpecterHUD>(CurrentWidget)) {
 		specter_hud->UpdateCounter(wait_to_spawn_counter);
@@ -280,4 +287,12 @@ void ATankPlayerController::OnSpawnOnClient() {
 	PlayingState = EPlayerPlayingState::Playing;
 
 	change_menu_widget(TankHUD);
+}
+
+void ATankPlayerController::GiveScoreOnServer(float score) {
+	if (auto player_state = get_player_state().match()) {
+		UE_LOG(LogTemp, Warning, TEXT("Give score 3 %f"), score);
+		player_state->GiveScore(score);
+		UE_LOG(LogTemp, Warning, TEXT("New score 3 %f"), player_state->GetScore());
+	}
 }

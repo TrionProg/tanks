@@ -85,4 +85,7 @@ private:
 	void OnSpawnMulticast();
 
 	void OnSpawnOnClient();
+
+public:
+	void GiveScoreOnServer(float score);
 };

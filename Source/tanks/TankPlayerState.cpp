@@ -6,3 +6,13 @@
 int32 ATankPlayerState::GetPlayerId() {
 	return PlayerId;
 }
+
+void ATankPlayerState::SetScore(float score) {
+	Score = score;
+}
+void ATankPlayerState::GiveScore(float score) {
+	Score += score;
+}
+float ATankPlayerState::GetScore() {
+	return Score;
+}

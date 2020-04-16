@@ -17,6 +17,7 @@
 #include "TankPlayerState.h"
 #include "Specter.h"
 #include "FlyingText.h"
+#include "Materials/Material.h"
 
 #include "Math/UnrealMathUtility.h"
 
@@ -137,12 +138,19 @@ ATank::ATank()
 
 	//---Movement---
 	prev_float_value = 0;
+	swing_yaw = 0;
+	swing_pitch = 0;
 
 	//---Shooting---
 	ShootInterval = 1;
+	MaxAmmo = 48;
+	StartAmmo = 22;
 
 	//---Health---
 	StartHealth = 100;
+
+	//---Ruins---
+	ClearRuineDelay = 10;
 
 	//ShootProjectile = AProjectile::GetClass();
 
@@ -158,7 +166,8 @@ void ATank::BeginPlay()
 	prev_float_value = 0;
 
 	//---Shooting---
-	ShootInterval = 1;
+	shoot_interval = ShootInterval;
+	ammo = StartAmmo;
 
 	//---Health---
 	Health = StartHealth;
@@ -195,56 +204,21 @@ void ATank::Tick(float dt)
 {
 	Super::Tick(dt);
 
-#if WITH_SERVER_CODE
-
-	/*
-	//Ётот код почему-то работает.
-	if (Role != ROLE_Authority)
-	{
-		auto pos = GetActorLocation();
-		UE_LOG(LogTemp, Warning, TEXT("ATank %f %f %f"), pos.X, pos.Y, pos.Z);
+	if (Health > 0) {
+		if (shoot_interval < ShootInterval) {
+			Reloading(dt);
+		}
 	}
-	*/
 
-	/*
-	//Ётот код почему-то работает.
-	if (!HasAuthority())
-	{
-		auto pos = GetActorLocation();
-		UE_LOG(LogTemp, Warning, TEXT("ATank %f %f %f"), pos.X, pos.Y, pos.Z);
+	if (HasAuthority()) {
+		if (Health <= 0) {
+			clear_ruine_counter -= dt;
+
+			if (clear_ruine_counter <= 0) {
+				Destroy();
+			}
+		}
 	}
-	*/
-
-	/*
-	switch (GetNetMode()) {
-	case NM_Standalone: UE_LOG(LogTemp, Warning, TEXT("Standalone")); break;
-	case NM_DedicatedServer: UE_LOG(LogTemp, Warning, TEXT("DedicatedServer")); break;
-	case NM_ListenServer: UE_LOG(LogTemp, Warning, TEXT("ListenServer")); break;
-	case NM_Client: UE_LOG(LogTemp, Warning, TEXT("Client")); break;
-	case NM_MAX: UE_LOG(LogTemp, Warning, TEXT("MAX")); break;
-	}
-	*/
-
-	/*
-	//Ќе работает
-	if (GetNetMode() == NM_DedicatedServer) {
-		//movement_component->SetMovement(ETankMovement::MoveForward);
-		auto pos = GetActorLocation();
-		UE_LOG(LogTemp, Warning, TEXT("ATank %f %f %f"), pos.X, pos.Y, pos.Z);
-		//auto pos = GetActorLocation();
-		//UE_LOG(LogTemp, Warning, TEXT("ATank %f %f %f"), pos.X, pos.Y, pos.Z);
-	}
-	*/
-
-
-#endif
-	/*
-	//Ќе работает
-	if (GetNetMode() == NM_DedicatedServer) {
-		auto pos = GetActorLocation();
-		UE_LOG(LogTemp, Warning, TEXT("ATank %f %f %f"), pos.X, pos.Y, pos.Z);
-	}
-	*/
 }
 
 void ATank::Destroyed(AActor* DestroyedActor) {
@@ -396,29 +370,45 @@ FVector ATank::GetRightVector() {
 	return Direction;
 }
 
+void ATank::SetSwingYaw(float new_swing_yaw) {
+	swing_yaw = new_swing_yaw;
+
+	const FRotator body_rotation = FRotator(swing_pitch, swing_yaw, 0.0);
+	body->SetRelativeRotation(body_rotation);
+}
+
+void ATank::SetSwingPitch(float new_swing_pitch) {
+	swing_pitch = new_swing_pitch;
+
+	const FRotator body_rotation = FRotator(swing_pitch, swing_yaw, 0.0);
+	body->SetRelativeRotation(body_rotation);
+}
+
 //---Shooting---
 
 //Works on client
 void ATank::input_shoot() {
 	if (auto controller = GetController()) {
 		if (controller->IsLocalPlayerController()) {
-			//TODO check if tank can to shoot
-
-			OnShoot();
-			OnShootOnClient();
+			if (shoot_interval == ShootInterval) {
+				OnShoot();
+				OnShootOnClient();
+			}
 		}
 	}
 }
 
 //Player shoots, runs on server
 void ATank::OnShoot_Implementation() {
-	//TODO check if wtank can to shoot
-
-	OnShootOnServer();
+	if (shoot_interval == ShootInterval) {
+		OnShootOnServer();
+	}
 }
 
 //Works on server for all(players and bots)
 void ATank::OnShootOnServer() {
+	shoot_interval = 0;
+
 	if (auto world = get_world().match()) {
 		const auto spawn_rotation = gun_muzzle->GetComponentRotation();
 		const auto spawn_location = gun_muzzle->GetComponentLocation();
@@ -428,7 +418,8 @@ void ATank::OnShootOnServer() {
 		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
 
 		// spawn the projectile at the muzzle
-		world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
+		auto projectile = world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
+		projectile->SetInstigator(this);
 	}
 
 	OnShootMulticast(GetPlayerId());
@@ -445,6 +436,8 @@ void ATank::OnShootMulticast_Implementation(int32 ShootInstigator) {
 }
 
 void ATank::OnShootOnClient() {
+	shoot_interval = 0;
+
 	if (auto world = get_world().match()) {
 		const auto spawn_rotation = gun_muzzle->GetComponentRotation();
 		const auto spawn_location = gun_muzzle->GetComponentLocation();
@@ -454,8 +447,28 @@ void ATank::OnShootOnClient() {
 		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
 
 		// spawn the projectile at the muzzle
-		world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
+		auto projectile = world->SpawnActor<AProjectile>(ShootProjectile, spawn_location, spawn_rotation, ActorSpawnParams);
+		projectile->SetInstigator(this);
 	}
+}
+
+void ATank::Reloading(float dt) {
+	if (ammo > 0) {
+		shoot_interval += dt;
+
+		if (shoot_interval >= ShootInterval) {
+			shoot_interval = ShootInterval;
+			ammo -= 1;
+		}
+	}
+}
+
+uint32 ATank::GetAmmo() {
+	return ammo;
+}
+
+float ATank::GetShootIntervalPercent() {
+	return shoot_interval / ShootInterval;
 }
 
 //---Health---
@@ -467,30 +480,7 @@ void ATank::OnRep_CurrentHealth()
 
 void ATank::OnHealthUpdate()
 {
-	//Client-specific functionality
-	if (IsLocallyControlled())
-	{
-		FString healthMessage = FString::Printf(TEXT("You now have %f health remaining."), Health);
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, healthMessage);
-
-		if (Health <= 0)
-		{
-			FString deathMessage = FString::Printf(TEXT("You have been killed."));
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, deathMessage);
-		}
-	}
-
-	//Server-specific functionality
-	if (Role == ROLE_Authority)
-	{
-		FString healthMessage = FString::Printf(TEXT("%s now has %f health remaining."), *GetFName().ToString(), Health);
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, healthMessage);
-	}
-
-	//Functions that occur on all machines. 
-	/*
-		Any special functionality that should occur as a result of damage or death should be placed here.
-	*/
+	
 }
 
 
@@ -523,7 +513,7 @@ bool ATank::ApplyDamage(float Damage, ETankDamageLocation DamageLocation) {
 	UE_LOG(LogTemp, Warning, TEXT("Damage.."));
 	Health -= Damage;
 
-	if (Health < 0) {
+	if (Health <= 0) {
 		OnDeathOnServer();
 		OnDeathMulticast();
 
@@ -548,7 +538,7 @@ void ATank::OnDamageOnClient(float damage) {
 		spawn_info.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 		AFlyingText* flying_text = (AFlyingText*)world->SpawnActor(DamageFlyingText, &location, &rotation, spawn_info);
-		FString Text = FString::Printf(TEXT("-%f"), (int32)damage);
+		FString Text = FString::Printf(TEXT("-%d"), (int32)damage);
 		flying_text->SetText(FText::FromString(Text));
 	}
 }
@@ -575,8 +565,7 @@ void ATank::OnDeathOnServer() {
 		}
 	}
 
-	//TODO Possess player to be spectator, set respawn counter to PlayerState and Controler
-	Destroy();
+	clear_ruine_counter = ClearRuineDelay;
 }
 
 void ATank::OnDeathMulticast_Implementation() {
@@ -591,8 +580,10 @@ void ATank::OnDeathMulticast_Implementation() {
 }
 
 void ATank::OnDeathOnClient() {
+	//ѕо-хорошему надо заспаунить актора-руину, который будет потребл€ть мало пам€ти. Ќо это пуста€ трата времени(+мен€ем материал)
+	body->SetMaterial(0, DarkMetal1);
+	body->SetMaterial(2, DarkMetal2);
 	//Explode..
-	//Destroy();
 }
 
 void ATank::OnPlayerDeath() {
@@ -603,4 +594,15 @@ void ATank::OnPlayerDeath() {
 
 float ATank::GetHealth() {
 	return Health;
+}
+
+//---Playing---
+
+void ATank::GiveScoreOnServer(float score) {
+	if (auto TankController = GetController()) {
+		if (auto TankPlayerController = Cast<ATankPlayerController>(TankController)) {
+			UE_LOG(LogTemp, Warning, TEXT("Give Score 2 %f"), Health);
+			TankPlayerController->GiveScoreOnServer(score);
+		}
+	}
 }

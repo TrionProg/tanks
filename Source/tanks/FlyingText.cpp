@@ -17,8 +17,8 @@ AFlyingText::AFlyingText()
 
 	TextComponent->SetupAttachment(RootComponent);
 	TextComponent->SetRelativeRotation(FRotator(0, 90, 0));
-	TextComponent->SetXScale(2);
-	TextComponent->SetYScale(2);
+	TextComponent->SetXScale(4);
+	TextComponent->SetYScale(4);
 
 	RiseSpeed = 100;
 	BeginZ = 0;

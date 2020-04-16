@@ -11,6 +11,9 @@
 
 #include "Math/UnrealMathUtility.h"
 
+const float ROTATION_INERTIA_AMPLITUDE = 3.0;
+const float ROTATION_INERTIA_TIME = 0.5;
+
 //NavMesh не юзает
 
 /*
@@ -220,13 +223,50 @@ void UTankMovementComponent::TickComponent(float dt, ELevelTick TickType, FActor
 
 	switch (RotationInertia) {
 	case ETankRotationInertia::RotateLeft: {
-		//TODO only visual, do not affects Yaw
-		RotationInertia = ETankRotationInertia::None;
+		RotationInertiaTimer += dt;
+
+		if (RotationInertiaTimer > ROTATION_INERTIA_TIME) {
+			RotationInertiaTimer = 0;
+			RotationInertia = ETankRotationInertia::None;
+
+			if (!Tank->HasAuthority()) {//only visual on client, do not affects Yaw
+				Tank->SetSwingYaw(0.0);
+			}
+		}else if (!Tank->HasAuthority()) {//only visual on client, do not affects Yaw
+			if (RotationInertiaTimer < ROTATION_INERTIA_TIME / 2.0) {
+				auto swing_yaw = -ROTATION_INERTIA_AMPLITUDE * RotationInertiaTimer;
+				Tank->SetSwingYaw(swing_yaw);
+			}
+			else if (RotationInertiaTimer < 1.0) {
+				auto swing_yaw = -ROTATION_INERTIA_AMPLITUDE * (ROTATION_INERTIA_TIME - RotationInertiaTimer);
+				Tank->SetSwingYaw(swing_yaw);
+			}
+		}
+
 		break;
 	}
 	case ETankRotationInertia::RotateRight: {
-		//TODO only visual, do not affects Yaw
-		RotationInertia = ETankRotationInertia::None;
+		RotationInertiaTimer += dt;
+
+		if (RotationInertiaTimer > ROTATION_INERTIA_TIME) {
+			RotationInertiaTimer = 0;
+			RotationInertia = ETankRotationInertia::None;
+
+			if (!Tank->HasAuthority()) {//only visual on client, do not affects Yaw
+				Tank->SetSwingYaw(0.0);
+			}
+		}
+		else if (!Tank->HasAuthority()) {//only visual on client, do not affects Yaw
+			if (RotationInertiaTimer < ROTATION_INERTIA_TIME / 2.0) {
+				auto swing_yaw = ROTATION_INERTIA_AMPLITUDE * RotationInertiaTimer;
+				Tank->SetSwingYaw(swing_yaw);
+			}
+			else if (RotationInertiaTimer < 1.0) {
+				auto swing_yaw = ROTATION_INERTIA_AMPLITUDE * (ROTATION_INERTIA_TIME - RotationInertiaTimer);
+				Tank->SetSwingYaw(swing_yaw);
+			}
+		}
+
 		break;
 	}
 	}
@@ -549,7 +589,7 @@ void UTankMovementComponent::EnableInertia(ETankMovementState PrevMovementState)
 		break;
 	case ETankMovementState::RotateLeft:
 		RotationInertia = ETankRotationInertia::RotateLeft;
-		RotationInertiaTimer = 1;
+		RotationInertiaTimer = 0;
 		SpinShakeSpeed = CurrentSpinSpeed;
 		CurrentSpinSpeed = 0;
 
@@ -560,7 +600,7 @@ void UTankMovementComponent::EnableInertia(ETankMovementState PrevMovementState)
 		break;
 	case ETankMovementState::RotateRight:
 		RotationInertia = ETankRotationInertia::RotateRight;
-		RotationInertiaTimer = 1;
+		RotationInertiaTimer = 0;
 		SpinShakeSpeed = CurrentSpinSpeed;
 		CurrentSpinSpeed = 0;
 
@@ -588,6 +628,9 @@ void UTankMovementComponent::DisableMovementInertia(bool ClearAcceleration) {
 void UTankMovementComponent::DisableRotationInertia() {
 	RotationInertia = ETankRotationInertia::None;
 	RotationInertiaTimer = 0;
+
+	auto Tank = (ATank*)PawnOwner; //TODO safe cast
+	Tank->SetSwingYaw(0.0);
 }
 
 void UTankMovementComponent::SetMovementState(ETankMovementState NewMovementState) {
@@ -644,6 +687,7 @@ void UTankMovementComponent::OnMovementStateChanged_Implementation(ETankMovement
 }
 
 void UTankMovementComponent::OnRep_MovementState() {
+	//TODO we need previous state to enable inertia, etc. Use multicast message
 	SimulateMovement();
 	/*
 	auto Tank = (ATank*)PawnOwner; //TODO safe cast

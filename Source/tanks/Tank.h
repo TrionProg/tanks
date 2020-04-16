@@ -14,6 +14,8 @@
 
 const int32 BOT_PLAYER_ID = -1;
 
+class UMaterial;
+
 UCLASS()
 class TANKS_API ATank : public APawn
 {
@@ -92,6 +94,8 @@ protected:
 //===Movement===
 private:
 	float prev_float_value;
+	float swing_yaw;
+	float swing_pitch;
 
 	void input_move_forward(float value);
 	void input_rotate_left();
@@ -116,15 +120,26 @@ public:
 	//Calls on clients
 	virtual void OnRotationInertiaEnabled(ETankRotationInertia RotationInteria);
 	
+	void SetSwingYaw(float new_swing_yaw);
+	void SetSwingPitch(float new_swing_pitch);
+
 //===Shooting===
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = Shooting)
 	TSubclassOf<class AProjectile> ShootProjectile;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = Shooting)
 	float ShootInterval;
 
-	//TODO ammo, interval
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = Shooting)
+	int32 MaxAmmo;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = Shooting)
+	int32 StartAmmo;
+
+private:
+	float shoot_interval;
+	uint32 ammo;
 private:
 	//Works on client
 	void input_shoot();
@@ -142,6 +157,11 @@ private:
 
 	//Works on clients and spawns visual projectile
 	void OnShootOnClient();
+
+	void Reloading(float dt);
+public:
+	uint32 GetAmmo();
+	float GetShootIntervalPercent();
 
 //===Health===
 protected:
@@ -189,7 +209,23 @@ private:
 
 public:
 	float GetHealth();
+//===Ruins===
+protected:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = Ruine)
+	UMaterial* DarkMetal1;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = Ruine)
+	UMaterial* DarkMetal2;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = Ruine)
+	float ClearRuineDelay;
+private:
+	float clear_ruine_counter;
+
+//===Playing===
+public:
+	//Works on server and for bots
+	void GiveScoreOnServer(float score);
 };
 
 //===Util===

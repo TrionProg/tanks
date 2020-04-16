@@ -40,6 +40,8 @@ AProjectile::AProjectile()
 	// Die after 3 seconds by default
 	InitialLifeSpan = 3.0f;
 	//bGenerateOverlapEvents = true;
+
+	instigator = nullptr;
 }
 
 void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit) {
@@ -47,6 +49,11 @@ void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimi
 		if (tank->HasAuthority()) {
 			auto DamageLocation = tank->CalcDamageLocation(OtherComp);
 			OnTankHit(tank, DamageLocation);
+
+			if (instigator) {
+				UE_LOG(LogTemp, Warning, TEXT("Give score"));
+				instigator->GiveScoreOnServer(20);
+			}
 		}
 		else {
 			//TODO play hit animation, sparks, sound
@@ -61,4 +68,12 @@ void AProjectile::OnActorBeginOverlap(UPrimitiveComponent* OverlappedComp, AActo
 		UE_LOG(LogTemp, Warning, TEXT("Tank Overlap"));
 		//OnEnemyHit(enemy);
 	}
+}
+
+void AProjectile::SetInstigator(ATank* new_instigator) {
+	instigator = new_instigator;
+}
+
+ATank* AProjectile::GetInstigator() {
+	return instigator;
 }

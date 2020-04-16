@@ -10,6 +10,8 @@
 
 #include "Projectile.generated.h"
 
+class ATank;
+
 UCLASS()
 class TANKS_API AProjectile : public AActor
 {
@@ -22,6 +24,9 @@ class TANKS_API AProjectile : public AActor
 	/** Projectile movement component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	class UProjectileMovementComponent* ProjectileMovement;
+
+	ATank* instigator;
+
 protected:
 	UFUNCTION(BlueprintImplementableEvent)
 	void OnTankHit(class ATank *tank, ETankDamageLocation damage_location);
@@ -40,6 +45,8 @@ public:
 	/** Returns ProjectileMovement subobject **/
 	FORCEINLINE class UProjectileMovementComponent* GetProjectileMovement() const { return ProjectileMovement; }
 
+	void SetInstigator(ATank* new_instigator);
+	ATank* GetInstigator();
 };
 
 
